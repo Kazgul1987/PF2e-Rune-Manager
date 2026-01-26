@@ -1,0 +1,32 @@
+{
+  "name": "pf2e-rune-manager",
+  "title": "PF2e Rune Manager",
+  "version": "0.1.0",
+  "description": "Adds rune management helpers to Pathfinder Second Edition actor sheets.",
+  "manifest": "https://example.com/PF2e-Rune-Manager/module.json",
+  "download": "https://example.com/PF2e-Rune-Manager/PF2e-Rune-Manager.zip",
+  "compatibility": {
+    "minimum": "11",
+    "verified": "11"
+  },
+  "authors": [
+    {
+      "name": "PF2e Rune Manager Contributors"
+    }
+  ],
+  "esmodules": [
+    "scripts/module.js"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "languages/en.json"
+    },
+    {
+      "lang": "de",
+      "name": "Deutsch",
+      "path": "languages/de.json"
+    }
+  ]
+}
