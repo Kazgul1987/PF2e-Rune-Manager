@@ -2,6 +2,8 @@
   "PF2E": {
     "RuneManager": {
       "AttachRunes": "Attach runes",
+      "AttachRunesDialogBody": "Rune management dialog placeholder.",
+      "AttachRunesDialogTitle": "Attach runes to {item}",
       "ConsumeRune": "Consume rune item",
       "ConsumeRuneSettingHint": "Delete the rune item after it is applied to a target.",
       "ConsumeRuneSettingName": "Consume rune on apply"

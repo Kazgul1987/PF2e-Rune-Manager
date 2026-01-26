@@ -126,6 +126,27 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
   return false;
 };
 
+const openRuneAttachDialog = (actor, runeItem) => {
+  if (!actor || !runeItem) return;
+
+  const title = game.i18n.format("PF2E.RuneManager.AttachRunesDialogTitle", {
+    item: runeItem.name ?? game.i18n.localize("PF2E.RuneManager.AttachRunes"),
+  });
+  const content = `<p>${game.i18n.localize("PF2E.RuneManager.AttachRunesDialogBody")}</p>`;
+
+  new Dialog({
+    title,
+    content,
+    buttons: {
+      close: {
+        icon: '<i class="fa-solid fa-check"></i>',
+        label: game.i18n.localize("PF2E.Close"),
+      },
+    },
+    default: "close",
+  }).render(true);
+};
+
 // --- renderActorSheetHook: Icon für Runen anzeigen ---
 const renderActorSheetHook = (app, html) => {
   const itemRows = html.find("li[data-item-id]");
@@ -150,6 +171,22 @@ const renderActorSheetHook = (app, html) => {
 
     controls.append(attachRunesControl);
   });
+
+  html
+    .off("click.pf2e-rune-manager", ".attach-runes")
+    .on("click.pf2e-rune-manager", ".attach-runes", (event) => {
+      event.preventDefault();
+
+      const itemId = $(event.currentTarget).closest("li[data-item-id]").data("itemId");
+      const runeItem = app.actor?.items?.get(itemId);
+
+      if (!runeItem) {
+        ui.notifications?.warn?.("Unable to locate rune item.");
+        return;
+      }
+
+      openRuneAttachDialog(app.actor, runeItem);
+    });
 };
 
 Hooks.once("init", () => {
