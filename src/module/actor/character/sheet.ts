@@ -1,8 +1,4 @@
-import { CharacterActor } from "./actor";
-
 export class CharacterSheet {
-  constructor(private readonly actor: CharacterActor) {}
-
   activateClickListener(html: HTMLElement): void {
     html.addEventListener("click", (event) => {
       const itemId = htmlClosest(event.target, "[data-item-id]")?.dataset.itemId;
@@ -10,8 +6,13 @@ export class CharacterSheet {
         return;
       }
 
-      void this.actor.openRuneAttachDialog(itemId);
+      this.openRuneAttachDialogPlaceholder(itemId);
     });
+  }
+
+  private openRuneAttachDialogPlaceholder(itemId: string): void {
+    void itemId;
+    // TODO: Replace with this.actor.openRuneAttachDialog(itemId).
   }
 }
 
