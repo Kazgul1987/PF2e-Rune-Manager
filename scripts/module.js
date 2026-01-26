@@ -249,7 +249,13 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
     const usage = item?.system?.usage?.value ?? "";
     const usageValue = usage.toString().toLowerCase();
     const itemType = item?.type ?? item?.system?.type ?? "";
-    const itemTraits = (item?.system?.traits?.value ?? item?.system?.traits ?? [])
+    const rawItemTraits = item?.system?.traits;
+    const itemTraitList = Array.isArray(rawItemTraits)
+      ? rawItemTraits
+      : Array.isArray(rawItemTraits?.value)
+        ? rawItemTraits.value
+        : [];
+    const itemTraits = itemTraitList
       .filter(Boolean)
       .map((trait) => trait.toString().toLowerCase());
     const isRune =
@@ -284,7 +290,13 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
       const usage = runeItem?.system?.usage?.value ?? "";
       const usageValue = usage.toString().toLowerCase();
       const runeType = runeItem?.type ?? runeItem?.system?.type ?? "";
-      const runeTraits = (runeItem?.system?.traits?.value ?? runeItem?.system?.traits ?? [])
+      const rawRuneTraits = runeItem?.system?.traits;
+      const runeTraitList = Array.isArray(rawRuneTraits)
+        ? rawRuneTraits
+        : Array.isArray(rawRuneTraits?.value)
+          ? rawRuneTraits.value
+          : [];
+      const runeTraits = runeTraitList
         .filter(Boolean)
         .map((trait) => trait.toString().toLowerCase());
       const isRune =
