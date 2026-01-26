@@ -663,7 +663,102 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   return false;
 };
 
-Hooks.on("renderActorSheetPF2e", (app, html) => {
+const CLICK_NAMESPACE = ".pf2eRuneManager";
+const ATTACH_RUNES_SELECTOR = "a[data-action='attach-runes']";
+
+const handleAttachRunesClick = (event) => {
+  const appId = event.currentTarget.closest(".app")?.dataset?.appid;
+  const windowId = appId != null && appId !== "" ? Number(appId) : null;
+  const app = windowId != null ? ui.windows?.[windowId] ?? ui.windows?.[appId] : null;
+  const actor = app?.actor;
+  const itemId = event.currentTarget.closest("li[data-item-id]")?.dataset.itemId;
+  const runeItem = actor?.items?.get(itemId);
+  const usage = runeItem?.system?.usage?.value ?? "";
+  const usageValue = usage.toString().toLowerCase();
+  const runeType = runeItem?.type ?? runeItem?.system?.type ?? "";
+  const rawRuneTraits = runeItem?.system?.traits;
+  const runeTraitList = Array.isArray(rawRuneTraits)
+    ? rawRuneTraits
+    : Array.isArray(rawRuneTraits?.value)
+      ? rawRuneTraits.value
+      : [];
+  const runeTraits = runeTraitList
+    .filter(Boolean)
+    .map((trait) => trait.toString().toLowerCase());
+  const isRune =
+    usageValue.startsWith("etched-onto") ||
+    (!usageValue &&
+      (runeType === "rune" ||
+        runeTraits.includes("rune") ||
+        runeTraits.includes("property") ||
+        runeTraits.includes("fundamental")));
+  if (!runeItem || !isRune) {
+    return;
+  }
+
+  const options = buildRuneTargetOptions(actor, runeItem);
+  if (!options.length) {
+    ui.notifications?.warn(
+      game.i18n?.localize?.("PF2E.RuneManager.NoValidTargets") ?? "No valid rune targets found."
+    );
+    return;
+  }
+  const dialogContent = `
+        <form>
+          <div class="form-group">
+            <label>${game.i18n?.localize?.("PF2E.RuneManager.SelectTarget") ?? "Select target"}</label>
+            <select name="rune-target">
+              ${options
+                .map((item) => `<option value="${item.id}">${item.name}</option>`)
+                .join("")}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>
+              <input
+                type="checkbox"
+                name="consume-rune"
+                ${game.settings?.get?.(MODULE_ID, "consumeRuneOnApply") ? "checked" : ""}
+              />
+              ${game.i18n?.localize?.("PF2E.RuneManager.ConsumeRune") ?? "Consume rune item"}
+            </label>
+          </div>
+        </form>
+      `;
+
+  new Dialog({
+    title: game.i18n?.localize?.("PF2E.RuneManager.AttachRunes") ?? "Attach Rune",
+    content: dialogContent,
+    buttons: {
+      confirm: {
+        label: game.i18n?.localize?.("PF2E.RuneManager.Confirm") ?? "Confirm",
+        callback: (dialogHtml) => {
+          const targetId = dialogHtml.find("select[name='rune-target']").val();
+          const consumeRune = dialogHtml.find("input[name='consume-rune']").prop("checked");
+          if (!targetId) {
+            return;
+          }
+          if (typeof actor?.openRuneAttachDialog === "function") {
+            actor.openRuneAttachDialog(itemId, targetId);
+            return;
+          }
+          Hooks.callAll("pf2eRuneManagerAttachRune", {
+            actor,
+            runeId: itemId,
+            targetId,
+            consumeRune,
+          });
+        },
+      },
+      cancel: {
+        label: game.i18n?.localize?.("PF2E.Cancel") ?? "Cancel",
+      },
+    },
+    default: "confirm",
+  }).render(true);
+};
+
+const renderActorSheetHook = (app, html) => {
   const itemRows = html.find("li[data-item-id]");
 
   itemRows.each((_index, row) => {
@@ -703,97 +798,27 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
 
     controls.append(attachRunesControl);
   });
+};
+renderActorSheetHook._pf2eRuneManager = true;
 
-  html
-    .off("click", "a[data-action='attach-runes']")
-    .on("click", "a[data-action='attach-runes']", (event) => {
-      const itemId = event.currentTarget.closest("li[data-item-id]")?.dataset.itemId;
-      const actor = app.actor;
-      const runeItem = actor?.items?.get(itemId);
-      const usage = runeItem?.system?.usage?.value ?? "";
-      const usageValue = usage.toString().toLowerCase();
-      const runeType = runeItem?.type ?? runeItem?.system?.type ?? "";
-      const rawRuneTraits = runeItem?.system?.traits;
-      const runeTraitList = Array.isArray(rawRuneTraits)
-        ? rawRuneTraits
-        : Array.isArray(rawRuneTraits?.value)
-          ? rawRuneTraits.value
-          : [];
-      const runeTraits = runeTraitList
-        .filter(Boolean)
-        .map((trait) => trait.toString().toLowerCase());
-      const isRune =
-        usageValue.startsWith("etched-onto") ||
-        (!usageValue &&
-          (runeType === "rune" ||
-            runeTraits.includes("rune") ||
-            runeTraits.includes("property") ||
-            runeTraits.includes("fundamental")));
-      if (!runeItem || !isRune) {
-        return;
-      }
+const existingRenderHooks = Hooks._hooks?.renderActorSheetPF2e ?? [];
+if (existingRenderHooks.length > 0) {
+  console.warn(
+    `[PF2E Rune Manager] Detected ${existingRenderHooks.length} renderActorSheetPF2e hook(s) before binding; ensure no duplicate module bindings.`
+  );
+}
+if (existingRenderHooks.some((hook) => hook?._pf2eRuneManager)) {
+  console.warn(
+    "[PF2E Rune Manager] renderActorSheetPF2e hook already registered; skipping duplicate binding."
+  );
+} else {
+  Hooks.on("renderActorSheetPF2e", renderActorSheetHook);
+}
 
-      const options = buildRuneTargetOptions(actor, runeItem);
-      if (!options.length) {
-        ui.notifications?.warn(
-          game.i18n?.localize?.("PF2E.RuneManager.NoValidTargets") ?? "No valid rune targets found."
-        );
-        return;
-      }
-      const dialogContent = `
-        <form>
-          <div class="form-group">
-            <label>${game.i18n?.localize?.("PF2E.RuneManager.SelectTarget") ?? "Select target"}</label>
-            <select name="rune-target">
-              ${options
-                .map((item) => `<option value="${item.id}">${item.name}</option>`)
-                .join("")}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>
-              <input
-                type="checkbox"
-                name="consume-rune"
-                ${game.settings?.get?.(MODULE_ID, "consumeRuneOnApply") ? "checked" : ""}
-              />
-              ${game.i18n?.localize?.("PF2E.RuneManager.ConsumeRune") ?? "Consume rune item"}
-            </label>
-          </div>
-        </form>
-      `;
-
-      new Dialog({
-        title: game.i18n?.localize?.("PF2E.RuneManager.AttachRunes") ?? "Attach Rune",
-        content: dialogContent,
-        buttons: {
-          confirm: {
-            label: game.i18n?.localize?.("PF2E.RuneManager.Confirm") ?? "Confirm",
-            callback: (dialogHtml) => {
-              const targetId = dialogHtml.find("select[name='rune-target']").val();
-              const consumeRune = dialogHtml.find("input[name='consume-rune']").prop("checked");
-              if (!targetId) {
-                return;
-              }
-              if (typeof actor?.openRuneAttachDialog === "function") {
-                actor.openRuneAttachDialog(itemId, targetId);
-                return;
-              }
-              Hooks.callAll("pf2eRuneManagerAttachRune", {
-                actor,
-                runeId: itemId,
-                targetId,
-                consumeRune,
-              });
-            },
-          },
-          cancel: {
-            label: game.i18n?.localize?.("PF2E.Cancel") ?? "Cancel",
-          },
-        },
-        default: "confirm",
-      }).render(true);
-    });
+Hooks.once("ready", () => {
+  $(document)
+    .off(`click${CLICK_NAMESPACE}`, ATTACH_RUNES_SELECTOR)
+    .on(`click${CLICK_NAMESPACE}`, ATTACH_RUNES_SELECTOR, handleAttachRunesClick);
 });
 
 Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId, consumeRune }) => {
