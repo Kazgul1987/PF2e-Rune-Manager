@@ -234,20 +234,30 @@ const getRuneCategory = (runeItem) => {
   return "fundamental";
 };
 
-const sluggifyRuneName = (runeItem) => {
+const sluggifyText = (value) => {
   const sluggifyFn =
     globalThis.sluggify ??
     globalThis.game?.pf2e?.sluggify ??
     globalThis.game?.pf2e?.system?.sluggify;
-  const name = runeItem?.name ?? "";
-  const explicitSlug = runeItem?.system?.slug ?? runeItem?.slug ?? "";
+
+  if (!value) {
+    return "";
+  }
+
   const slug =
-    explicitSlug ||
-    (typeof sluggifyFn === "function"
-      ? sluggifyFn(name)
-      : name.toString().toLowerCase().replace(/\s+/g, "-"));
+    typeof sluggifyFn === "function"
+      ? sluggifyFn(value)
+      : value.toString().toLowerCase().replace(/\s+/g, "-");
 
   return slug?.toString().toLowerCase() ?? "";
+};
+
+const sluggifyRuneName = (runeItem) => {
+  const name = runeItem?.name ?? "";
+  const explicitSlug = runeItem?.system?.slug ?? runeItem?.slug ?? "";
+  const slugSource = explicitSlug || name;
+
+  return sluggifyText(slugSource);
 };
 
 const getPropertyRuneInfo = (runeItem) => {
@@ -374,7 +384,8 @@ const findFundamentalMatch = (data, runeSlug) => {
 
 const getSystemFundamentalRuneData = (runeSlug) => {
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
-  if (!systemRuneData || !runeSlug) {
+  const normalizedSlug = sluggifyText(runeSlug);
+  if (!systemRuneData || !normalizedSlug) {
     return {};
   }
 
@@ -397,7 +408,7 @@ const getSystemFundamentalRuneData = (runeSlug) => {
       continue;
     }
 
-    const matchResult = findFundamentalMatch(data, runeSlug);
+    const matchResult = findFundamentalMatch(data, normalizedSlug);
     if (matchResult?.match) {
       const tierValue = getFundamentalTierFromKey(target, matchResult.tierKey);
       matches[target] = tierValue ?? true;
@@ -411,8 +422,13 @@ const getFundamentalRuneData = (runeItem) => {
   const runeData = runeItem?.system?.runes ?? {};
   const runeName = getRuneDisplayName(runeItem);
   const runeSlug = sluggifyRuneName(runeItem);
+  const nameSlug = sluggifyText(runeItem?.name ?? "");
   const normalizedName = normalizeRuneText(`${runeName} ${runeSlug}`);
-  const systemFundamentalData = getSystemFundamentalRuneData(runeSlug);
+  let systemFundamentalData = getSystemFundamentalRuneData(runeSlug);
+  if (!Object.keys(systemFundamentalData).length && nameSlug && nameSlug !== runeSlug) {
+    systemFundamentalData = getSystemFundamentalRuneData(nameSlug);
+  }
+  const allowNameFallback = !Object.keys(systemFundamentalData).length;
   const data = {};
 
   const potencyBonus = runeData?.potency ?? extractRuneBonus(runeItem);
@@ -422,7 +438,7 @@ const getFundamentalRuneData = (runeItem) => {
     } else if (typeof systemFundamentalData.potency === "number") {
       data.potency = systemFundamentalData.potency;
     }
-  } else if (potencyBonus != null && normalizedName.includes("potency")) {
+  } else if (allowNameFallback && potencyBonus != null && normalizedName.includes("potency")) {
     data.potency = potencyBonus;
   }
 
@@ -434,11 +450,11 @@ const getFundamentalRuneData = (runeItem) => {
         : null);
   } else if (runeData?.striking) {
     data.striking = runeData.striking;
-  } else if (normalizedName.includes("major striking")) {
+  } else if (allowNameFallback && normalizedName.includes("major striking")) {
     data.striking = "majorStriking";
-  } else if (normalizedName.includes("greater striking")) {
+  } else if (allowNameFallback && normalizedName.includes("greater striking")) {
     data.striking = "greaterStriking";
-  } else if (normalizedName.includes("striking")) {
+  } else if (allowNameFallback && normalizedName.includes("striking")) {
     data.striking = "striking";
   }
 
@@ -450,11 +466,11 @@ const getFundamentalRuneData = (runeItem) => {
         : null);
   } else if (runeData?.resilient) {
     data.resilient = runeData.resilient;
-  } else if (normalizedName.includes("major resilient")) {
+  } else if (allowNameFallback && normalizedName.includes("major resilient")) {
     data.resilient = "majorResilient";
-  } else if (normalizedName.includes("greater resilient")) {
+  } else if (allowNameFallback && normalizedName.includes("greater resilient")) {
     data.resilient = "greaterResilient";
-  } else if (normalizedName.includes("resilient")) {
+  } else if (allowNameFallback && normalizedName.includes("resilient")) {
     data.resilient = "resilient";
   }
 
@@ -466,11 +482,11 @@ const getFundamentalRuneData = (runeItem) => {
         : null);
   } else if (runeData?.reinforcing) {
     data.reinforcing = runeData.reinforcing;
-  } else if (normalizedName.includes("major reinforcing")) {
+  } else if (allowNameFallback && normalizedName.includes("major reinforcing")) {
     data.reinforcing = "majorReinforcing";
-  } else if (normalizedName.includes("greater reinforcing")) {
+  } else if (allowNameFallback && normalizedName.includes("greater reinforcing")) {
     data.reinforcing = "greaterReinforcing";
-  } else if (normalizedName.includes("reinforcing")) {
+  } else if (allowNameFallback && normalizedName.includes("reinforcing")) {
     data.reinforcing = "reinforcing";
   }
 
