@@ -223,16 +223,10 @@ const buildRuneTargetOptions = (actor, rune) => {
 };
 
 const getRuneCategory = (runeItem) => {
-  const runeTraits = getRuneTraits(runeItem);
-  const runeType =
-    runeItem?.system?.runes?.type ??
-    runeItem?.system?.runes?.category ??
-    runeItem?.system?.runes?.value ??
-    runeItem?.system?.runeType ??
-    "";
-  const normalizedType = runeType.toString().toLowerCase();
-  const name = runeItem?.name ?? "";
-  const slug = runeItem?.system?.slug ?? runeItem?.slug ?? sluggifyText(name);
+  const slug =
+    runeItem?.system?.slug ??
+    runeItem?.slug ??
+    sluggifyText(runeItem?.name ?? "");
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
 
   if (
@@ -246,10 +240,6 @@ const getRuneCategory = (runeItem) => {
 
   const fundamentalData = getFundamentalRuneData(runeItem);
   if (Object.keys(fundamentalData).length) {
-    return "fundamental";
-  }
-
-  if (normalizedType === "property" || runeTraits.includes("property")) {
     return "fundamental";
   }
 
