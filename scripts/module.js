@@ -817,7 +817,7 @@ const renderActorSheetHook = (app, html) => {
     }
 
     const attachRunesControl = $(
-      '<a class="attach-runes" data-action="attach-runes" data-tooltip="PF2E.RuneManager.AttachRunes">'
+      '<a class="attach-runes" data-action="attach-runes" data-tooltip="PF2E.RuneManager.AttachRunes"></a>'
     ).append('<i class="fa-solid fa-sparkles fa-fw"></i>');
 
     controls.append(attachRunesControl);
