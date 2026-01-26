@@ -243,7 +243,7 @@ const getRuneCategory = (runeItem) => {
     return "fundamental";
   }
 
-  return "fundamental";
+  return null;
 };
 
 const sluggifyText = (value) => {
