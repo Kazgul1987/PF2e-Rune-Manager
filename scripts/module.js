@@ -1,48 +1,147 @@
-const parseRuneTargets = (rune) => {
-  const runeSystem = rune?.system ?? {};
-  const runeTraits = runeSystem?.traits?.value ?? runeSystem?.traits ?? [];
-  const runeUsage = runeSystem?.usage?.value ?? runeSystem?.usage ?? "";
-  const runeCategory =
-    runeSystem?.runes?.type ??
-    runeSystem?.runes?.category ??
-    runeSystem?.runes?.value ??
-    runeSystem?.runeType ??
-    "";
-  const targetSources = [runeUsage, runeCategory, ...(Array.isArray(runeTraits) ? runeTraits : [])]
+const getPropertyRuneSlots = (targetItem) => {
+  const systemSlotsFn =
+    globalThis.getPropertyRuneSlots ??
+    globalThis.game?.pf2e?.runes?.getPropertyRuneSlots ??
+    globalThis.game?.pf2e?.item?.getPropertyRuneSlots ??
+    globalThis.game?.pf2e?.Item?.getPropertyRuneSlots;
+
+  if (typeof systemSlotsFn === "function") {
+    return systemSlotsFn(targetItem);
+  }
+
+  const potency = Number(targetItem?.system?.runes?.potency ?? 0);
+  return Math.max(0, potency);
+};
+
+const getRuneUsageValue = (runeItem) =>
+  (runeItem?.system?.usage?.value ?? runeItem?.system?.usage ?? "").toString().toLowerCase();
+
+const getRuneTraits = (runeItem) =>
+  (runeItem?.system?.traits?.value ?? runeItem?.system?.traits ?? [])
     .filter(Boolean)
-    .map((entry) => entry.toString().toLowerCase());
-  const targets = new Set();
+    .map((trait) => trait.toString().toLowerCase());
 
-  if (targetSources.some((entry) => entry.includes("weapon"))) {
-    targets.add("weapon");
-  }
-  if (targetSources.some((entry) => entry.includes("armor"))) {
-    targets.add("armor");
-  }
-  if (targetSources.some((entry) => entry.includes("shield"))) {
-    targets.add("shield");
+const isRuneCompatible = (runeItem, targetItem) => {
+  if (!runeItem || !targetItem) {
+    return false;
   }
 
-  return targets;
+  if (!["weapon", "armor", "shield"].includes(targetItem.type)) {
+    return false;
+  }
+
+  const runeUsage = getRuneUsageValue(runeItem);
+  const runeTraits = getRuneTraits(runeItem);
+  const runeType =
+    runeItem?.system?.runes?.type ??
+    runeItem?.system?.runes?.category ??
+    runeItem?.system?.runes?.value ??
+    runeItem?.system?.runeType ??
+    "";
+
+  const targetCategory = targetItem?.system?.category?.toString().toLowerCase() ?? "";
+  const targetDamageType =
+    targetItem?.system?.damage?.damageType?.toString().toLowerCase() ?? "";
+  const targetPropertyRunes = (targetItem?.system?.runes?.property ?? []).map((rune) =>
+    rune?.toString().toLowerCase()
+  );
+
+  const isWeaponTarget = runeUsage.includes("weapon") || runeTraits.includes("weapon");
+  const isArmorTarget = runeUsage.includes("armor") || runeTraits.includes("armor");
+  const isShieldTarget = runeUsage.includes("shield") || runeTraits.includes("shield");
+
+  if (isWeaponTarget && targetItem.type !== "weapon") {
+    return false;
+  }
+  if (isArmorTarget && targetItem.type !== "armor") {
+    return false;
+  }
+  if (isShieldTarget && targetItem.type !== "shield") {
+    return false;
+  }
+
+  if (runeUsage.includes("etched-onto-heavy-armor") && targetCategory !== "heavy-armor") {
+    return false;
+  }
+  if (runeUsage.includes("etched-onto-medium-armor") && targetCategory !== "medium-armor") {
+    return false;
+  }
+  if (runeUsage.includes("etched-onto-light-armor") && targetCategory !== "light-armor") {
+    return false;
+  }
+  if (runeUsage.includes("etched-onto-armor") && targetItem.type !== "armor") {
+    return false;
+  }
+  if (runeUsage.includes("etched-onto-a-weapon") && targetItem.type !== "weapon") {
+    return false;
+  }
+  if (runeUsage.includes("etched-onto-a-shield") && targetItem.type !== "shield") {
+    return false;
+  }
+
+  const damageTypeTraits = ["piercing", "slashing", "bludgeoning"];
+  const runeDamageTrait = runeTraits.find((trait) => damageTypeTraits.includes(trait));
+  if (runeDamageTrait && targetDamageType && runeDamageTrait !== targetDamageType) {
+    return false;
+  }
+
+  const hasHolyTrait = runeTraits.includes("holy");
+  const hasUnholyTrait = runeTraits.includes("unholy");
+  const hasWoHolyTrait = runeTraits.includes("wo-holy");
+  const hasWoUnholyTrait = runeTraits.includes("wo-unholy");
+
+  if (hasWoHolyTrait && targetPropertyRunes.includes("holy")) {
+    return false;
+  }
+  if (hasWoUnholyTrait && targetPropertyRunes.includes("unholy")) {
+    return false;
+  }
+  if (hasHolyTrait && (targetPropertyRunes.includes("unholy") || targetPropertyRunes.includes("wo-holy"))) {
+    return false;
+  }
+  if (
+    hasUnholyTrait &&
+    (targetPropertyRunes.includes("holy") || targetPropertyRunes.includes("wo-unholy"))
+  ) {
+    return false;
+  }
+
+  if (runeType === "property" || runeTraits.includes("property")) {
+    const slots = getPropertyRuneSlots(targetItem);
+    const usedSlots = targetPropertyRunes.length;
+    if (!slots || slots - usedSlots <= 0) {
+      return false;
+    }
+  }
+
+  const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
+  const systemPrunePropertyRunes =
+    globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
+  const runeSlug =
+    runeItem?.slug ??
+    runeItem?.system?.slug ??
+    runeItem?.system?.runes?.slug ??
+    runeItem?.name?.toString().toLowerCase().replace(/\s+/g, "-");
+
+  if (
+    systemRuneData &&
+    systemPrunePropertyRunes &&
+    (runeType === "property" || runeTraits.includes("property")) &&
+    runeSlug &&
+    systemRuneData[runeSlug]
+  ) {
+    const pruned = systemPrunePropertyRunes([runeSlug], targetItem);
+    if (Array.isArray(pruned) && !pruned.includes(runeSlug)) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
 const buildRuneTargetOptions = (actor, rune) => {
-  const allowedTargets = parseRuneTargets(rune);
-  const hasTargetFilter = allowedTargets.size > 0;
   const actorItems = actor?.items ?? [];
-  return actorItems.filter((item) => {
-    if (!item) {
-      return false;
-    }
-    if (hasTargetFilter && !allowedTargets.has(item.type)) {
-      return false;
-    }
-    const hasRuneSlots = !!item.system?.runes;
-    if (!hasTargetFilter && !hasRuneSlots) {
-      return false;
-    }
-    return ["weapon", "armor", "shield"].includes(item.type);
-  });
+  return actorItems.filter((item) => isRuneCompatible(rune, item));
 };
 
 Hooks.on("renderActorSheetPF2e", (app, html) => {
