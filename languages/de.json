@@ -2,6 +2,8 @@
   "PF2E": {
     "RuneManager": {
       "AttachRunes": "Runen anbringen",
+      "AttachRunesDialogBody": "Platzhalter für den Runen-Dialog.",
+      "AttachRunesDialogTitle": "Runen anbringen an {item}",
       "ConsumeRune": "Rune verbrauchen",
       "ConsumeRuneSettingHint": "Löscht die Rune nach dem Anbringen am Ziel.",
       "ConsumeRuneSettingName": "Rune beim Anbringen verbrauchen"
