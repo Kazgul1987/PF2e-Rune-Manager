@@ -2,6 +2,13 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
   const itemRows = html.find("li[data-item-id]");
 
   itemRows.each((_index, row) => {
+    const itemId = row.dataset.itemId;
+    const item = app.actor?.items?.get(itemId);
+    const isRune = item?.type === "rune" || item?.system?.type === "rune";
+    if (!isRune) {
+      return;
+    }
+
     const controls = $(row).find(".item-controls");
     if (!controls.length || controls.find(".attach-runes").length) {
       return;
