@@ -231,9 +231,16 @@ const getRuneCategory = (runeItem) => {
     runeItem?.system?.runeType ??
     "";
   const normalizedType = runeType.toString().toLowerCase();
+  const name = runeItem?.name ?? "";
+  const slug = runeItem?.system?.slug ?? runeItem?.slug ?? sluggifyText(name);
+  const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
 
-  const propertyInfo = getPropertyRuneInfo(runeItem);
-  if (propertyInfo) {
+  if (
+    slug &&
+    systemRuneData &&
+    (slug in (systemRuneData?.weapon?.property ?? {}) ||
+      slug in (systemRuneData?.armor?.property ?? {}))
+  ) {
     return "property";
   }
 
