@@ -595,12 +595,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
 
-  const sluggify =
-    globalThis.sluggify ??
-    globalThis.game?.pf2e?.sluggify ??
-    globalThis.game?.pf2e?.system?.sluggify ??
-    sluggifyText;
-  const slug = runeItem?.system?.slug ?? runeItem?.slug ?? sluggify(runeItem?.name ?? "");
+  const slug = runeItem?.system?.slug;
   const runeSlug = slug?.toString().toLowerCase() ?? "";
 
   const warn = (message) => {
