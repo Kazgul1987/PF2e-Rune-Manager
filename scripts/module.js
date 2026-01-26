@@ -184,7 +184,7 @@ const isRuneCompatible = (runeItem, targetItem) => {
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
-  const runeSlug = getRuneSlugFromItem(runeItem);
+  const runeSlug = sluggifyRuneName(runeItem);
 
   if (
     systemRuneData &&
@@ -234,15 +234,15 @@ const getRuneCategory = (runeItem) => {
   return "fundamental";
 };
 
-const getRuneSlugFromItem = (runeItem) => {
+const sluggifyRuneName = (runeItem) => {
   const sluggifyFn =
     globalThis.sluggify ??
     globalThis.game?.pf2e?.sluggify ??
     globalThis.game?.pf2e?.system?.sluggify;
   const name = runeItem?.name ?? "";
+  const explicitSlug = runeItem?.system?.slug ?? runeItem?.slug ?? "";
   const slug =
-    runeItem?.system?.slug ??
-    runeItem?.slug ??
+    explicitSlug ||
     (typeof sluggifyFn === "function"
       ? sluggifyFn(name)
       : name.toString().toLowerCase().replace(/\s+/g, "-"));
@@ -256,7 +256,7 @@ const getPropertyRuneInfo = (runeItem) => {
     return null;
   }
 
-  const slug = getRuneSlugFromItem(runeItem);
+  const slug = sluggifyRuneName(runeItem);
   if (!slug) {
     return null;
   }
@@ -410,7 +410,7 @@ const getSystemFundamentalRuneData = (runeSlug) => {
 const getFundamentalRuneData = (runeItem) => {
   const runeData = runeItem?.system?.runes ?? {};
   const runeName = getRuneDisplayName(runeItem);
-  const runeSlug = getRuneSlugFromItem(runeItem);
+  const runeSlug = sluggifyRuneName(runeItem);
   const normalizedName = normalizeRuneText(`${runeName} ${runeSlug}`);
   const systemFundamentalData = getSystemFundamentalRuneData(runeSlug);
   const data = {};
@@ -547,7 +547,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
 
-  const runeSlug = getRuneSlugFromItem(runeItem);
+  const runeSlug = sluggifyRuneName(runeItem);
   if (!runeSlug) {
     ui.notifications?.warn?.(
       game.i18n?.localize?.("PF2E.RuneManager.UnableToMapProperty") ??
