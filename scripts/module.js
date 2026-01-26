@@ -627,7 +627,9 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     return false;
   }
 
-  const existing = targetItem?.system?.runes?.property ?? [];
+  const existing = (targetItem?.system?.runes?.property ?? []).map((rune) =>
+    rune?.toString().toLowerCase()
+  );
   const maxSlots = getPropertyRuneSlots(targetItem);
   const usedSlots = targetItem?.system?.runes?.property?.length ?? 0;
   const weaponPropertyData = systemRuneData.weapon?.property;
