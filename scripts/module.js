@@ -184,11 +184,7 @@ const isRuneCompatible = (runeItem, targetItem) => {
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
-  const runeSlug =
-    runeItem?.slug ??
-    runeItem?.system?.slug ??
-    runeItem?.system?.runes?.slug ??
-    runeItem?.name?.toString().toLowerCase().replace(/\s+/g, "-");
+  const runeSlug = getRuneSlugFromItem(runeItem);
 
   if (
     systemRuneData &&
@@ -221,7 +217,8 @@ const getRuneCategory = (runeItem) => {
     "";
   const normalizedType = runeType.toString().toLowerCase();
 
-  if (normalizedType === "property" || runeTraits.includes("property")) {
+  const propertyInfo = getPropertyRuneInfo(runeItem);
+  if (propertyInfo) {
     return "property";
   }
 
@@ -230,21 +227,48 @@ const getRuneCategory = (runeItem) => {
     return "fundamental";
   }
 
-  return "property";
+  if (normalizedType === "property" || runeTraits.includes("property")) {
+    return "fundamental";
+  }
+
+  return "fundamental";
 };
 
-const sluggifyRuneName = (runeItem) => {
+const getRuneSlugFromItem = (runeItem) => {
   const sluggifyFn =
     globalThis.sluggify ??
     globalThis.game?.pf2e?.sluggify ??
     globalThis.game?.pf2e?.system?.sluggify;
-  const name = runeItem?.name ?? runeItem?.system?.slug ?? runeItem?.slug ?? "";
+  const name = runeItem?.name ?? "";
+  const slug =
+    runeItem?.system?.slug ??
+    runeItem?.slug ??
+    (typeof sluggifyFn === "function"
+      ? sluggifyFn(name)
+      : name.toString().toLowerCase().replace(/\s+/g, "-"));
 
-  if (typeof sluggifyFn === "function") {
-    return sluggifyFn(name);
+  return slug?.toString().toLowerCase() ?? "";
+};
+
+const getPropertyRuneInfo = (runeItem) => {
+  const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
+  if (!systemRuneData) {
+    return null;
   }
 
-  return name.toString().toLowerCase().replace(/\s+/g, "-");
+  const slug = getRuneSlugFromItem(runeItem);
+  if (!slug) {
+    return null;
+  }
+
+  if (slug in (systemRuneData?.weapon?.property ?? {})) {
+    return { slug, category: "weapon" };
+  }
+  if (slug in (systemRuneData?.armor?.property ?? {})) {
+    return { slug, category: "armor" };
+  }
+
+  return null;
 };
 
 const normalizeRuneText = (value) =>
@@ -386,7 +410,7 @@ const getSystemFundamentalRuneData = (runeSlug) => {
 const getFundamentalRuneData = (runeItem) => {
   const runeData = runeItem?.system?.runes ?? {};
   const runeName = getRuneDisplayName(runeItem);
-  const runeSlug = sluggifyRuneName(runeItem);
+  const runeSlug = getRuneSlugFromItem(runeItem);
   const normalizedName = normalizeRuneText(`${runeName} ${runeSlug}`);
   const systemFundamentalData = getSystemFundamentalRuneData(runeSlug);
   const data = {};
@@ -523,7 +547,8 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
 
-  const runeSlug = sluggifyRuneName(runeItem);
+  const propertyInfo = getPropertyRuneInfo(runeItem);
+  const runeSlug = propertyInfo?.slug ?? getRuneSlugFromItem(runeItem);
   if (!systemRuneData || !systemPrunePropertyRunes || !runeSlug) {
     ui.notifications?.warn?.(
       game.i18n?.localize?.("PF2E.RuneManager.UnableToMapProperty") ??
@@ -538,20 +563,16 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   }
 
   const propertyData =
-    targetItem.type === "weapon"
+    propertyInfo?.category === "weapon"
       ? systemRuneData?.weapon?.property
-      : systemRuneData?.armor?.property;
+      : propertyInfo?.category === "armor"
+        ? systemRuneData?.armor?.property
+        : targetItem.type === "weapon"
+          ? systemRuneData?.weapon?.property
+          : systemRuneData?.armor?.property;
 
   if (!propertyData || !propertyData[runeSlug]) {
-    ui.notifications?.warn?.(
-      game.i18n?.localize?.("PF2E.RuneManager.UnableToMapProperty") ??
-        "Unable to map property rune to target item."
-    );
-    console.warn(
-      "[PF2E Rune Manager] Unable to map property rune to target item.",
-      runeItem,
-      targetItem
-    );
+    await applyFundamentalRune(runeItem, targetItem);
     return;
   }
 
