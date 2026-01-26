@@ -1,7 +1,10 @@
 {
   "PF2E": {
     "RuneManager": {
-      "AttachRunes": "Runen anbringen"
+      "AttachRunes": "Runen anbringen",
+      "ConsumeRune": "Rune verbrauchen",
+      "ConsumeRuneSettingHint": "Löscht die Rune nach dem Anbringen am Ziel.",
+      "ConsumeRuneSettingName": "Rune beim Anbringen verbrauchen"
     }
   }
 }

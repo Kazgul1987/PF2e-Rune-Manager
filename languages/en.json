@@ -1,7 +1,10 @@
 {
   "PF2E": {
     "RuneManager": {
-      "AttachRunes": "Attach runes"
+      "AttachRunes": "Attach runes",
+      "ConsumeRune": "Consume rune item",
+      "ConsumeRuneSettingHint": "Delete the rune item after it is applied to a target.",
+      "ConsumeRuneSettingName": "Consume rune on apply"
     }
   }
 }
