@@ -2,12 +2,12 @@ const MODULE_ID = "pf2e-rune-manager";
 const ATTACH_RUNES_SELECTOR = "a[data-action='attach-runes']";
 const CLICK_NAMESPACE = ".pf2eRuneManager";
 
+const DBG = (...args) => console.log("[RuneManager DBG]", ...args);
+
 Hooks.once("init", () => {
   game.settings?.register(MODULE_ID, "consumeRuneOnApply", {
-    name: game.i18n?.localize?.("PF2E.RuneManager.ConsumeRuneSettingName") ?? "Consume rune on apply",
-    hint:
-      game.i18n?.localize?.("PF2E.RuneManager.ConsumeRuneSettingHint") ??
-      "Delete the rune item after it is applied to a target.",
+    name: "Consume rune on apply",
+    hint: "Delete the rune item after it is applied to a target.",
     scope: "world",
     config: true,
     type: Boolean,
@@ -85,6 +85,17 @@ const isRuneCompatible = (runeItem, targetItem) => {
   const isArmor = isItemType(targetItem, "armor");
   const isShield = isItemType(targetItem, "shield");
 
+  DBG("isRuneCompatible", {
+    rune: runeItem?.name,
+    runeUsage,
+    runeTraits,
+    target: targetItem?.name,
+    targetType: targetItem?.type,
+    targetCategory,
+    targetDamageType,
+    targetPropertyRunes,
+  });
+
   const usageChecks = {
     "etched-onto-a-weapon": () => isWeapon,
     "etched-onto-a-shield": () => isShield,
@@ -116,9 +127,12 @@ const isRuneCompatible = (runeItem, targetItem) => {
   };
 
   const usageCheck = usageChecks[runeUsage];
-  if (usageCheck && !usageCheck()) return false;
+  if (usageCheck && !usageCheck()) {
+    DBG("blocked by usageCheck", runeUsage);
+    return false;
+  }
 
-  // Property-Rune-Slots prüfen
+  // Property slots prüfen
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
   if (systemRuneData) {
     const runeSlug = sluggifyRuneName(runeItem);
@@ -126,6 +140,7 @@ const isRuneCompatible = (runeItem, targetItem) => {
     const isArmorProperty = systemRuneData.armor?.property?.[runeSlug];
     if (isWeaponProperty || isArmorProperty) {
       const slots = getPropertyRuneSlots(targetItem);
+      DBG("property slots", { slots, used: targetPropertyRunes.length });
       if (!slots || slots - targetPropertyRunes.length <= 0) return false;
     }
   }
@@ -134,40 +149,34 @@ const isRuneCompatible = (runeItem, targetItem) => {
 };
 
 const getFundamentalRuneData = (runeItem) => {
-  const runeSlug = sluggifyRuneName(runeItem);
   const name = (runeItem?.name ?? "").toString().toLowerCase();
-
   const data = {};
 
-  // Potency +X
   const potencyMatch = name.match(/[+＋]\s*(\d+)/);
-  if (potencyMatch) {
-    data.potency = Number(potencyMatch[1]);
-  }
+  if (potencyMatch) data.potency = Number(potencyMatch[1]);
 
-  // Striking tiers (weapon)
   if (name.includes("mythic striking")) data.striking = "mythicStriking";
   else if (name.includes("major striking")) data.striking = "majorStriking";
   else if (name.includes("greater striking")) data.striking = "greaterStriking";
   else if (name.includes("striking")) data.striking = "striking";
 
-  // Resilient tiers (armor)
   if (name.includes("mythic resilient")) data.resilient = "mythicResilient";
   else if (name.includes("major resilient")) data.resilient = "majorResilient";
   else if (name.includes("greater resilient")) data.resilient = "greaterResilient";
   else if (name.includes("resilient")) data.resilient = "resilient";
 
-  // Reinforcing tiers (shield)
   if (name.includes("major reinforcing")) data.reinforcing = "majorReinforcing";
   else if (name.includes("greater reinforcing")) data.reinforcing = "greaterReinforcing";
   else if (name.includes("reinforcing")) data.reinforcing = "reinforcing";
 
-  return { ...data, _slug: runeSlug };
+  return data;
 };
 
 const getRuneCategory = (runeItem) => {
   const slug = sluggifyRuneName(runeItem);
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
+
+  DBG("getRuneCategory", { slug, hasRuneData: !!systemRuneData });
 
   if (
     slug &&
@@ -179,25 +188,24 @@ const getRuneCategory = (runeItem) => {
   }
 
   const fundamental = getFundamentalRuneData(runeItem);
-  if (Object.keys(fundamental).length > 1) return "fundamental"; // _slug zählt auch mit
+  if (Object.keys(fundamental).length) return "fundamental";
 
   return null;
 };
 
 const applyFundamentalRune = async (runeItem, targetItem) => {
   const runeData = getFundamentalRuneData(runeItem);
-  const updates = {};
+  DBG("applyFundamentalRune", { rune: runeItem?.name, runeData });
 
+  const updates = {};
   if (targetItem.type === "weapon") {
     if (runeData.potency != null) updates["system.runes.potency"] = runeData.potency;
     if (runeData.striking != null) updates["system.runes.striking"] = runeData.striking;
   }
-
   if (targetItem.type === "armor") {
     if (runeData.potency != null) updates["system.runes.potency"] = runeData.potency;
     if (runeData.resilient != null) updates["system.runes.resilient"] = runeData.resilient;
   }
-
   if (targetItem.type === "shield") {
     if (runeData.reinforcing != null) updates["system.runes.reinforcing"] = runeData.reinforcing;
   }
@@ -206,8 +214,6 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
     await targetItem.update(updates);
     return true;
   }
-
-  ui.notifications?.warn?.("Unable to map fundamental rune.");
   return false;
 };
 
@@ -217,6 +223,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
 
   const runeSlug = sluggifyRuneName(runeItem);
+  DBG("applyPropertyRune", { rune: runeItem?.name, runeSlug });
 
   if (!systemRuneData || !systemPrunePropertyRunes) {
     ui.notifications?.warn?.("PF2e rune data unavailable.");
@@ -252,7 +259,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     return true;
   }
 
-  ui.notifications?.warn?.("Property runes on shields are not supported by this module.");
+  ui.notifications?.warn?.("Property runes on shields are not supported.");
   return false;
 };
 
@@ -269,11 +276,14 @@ const handleAttachRunesClick = (event) => {
   const itemId = event.currentTarget.closest("li[data-item-id]")?.dataset.itemId;
   const runeItem = actor?.items?.get(itemId);
 
+  DBG("click", { itemId, rune: runeItem?.name });
+
   const usage = runeItem?.system?.usage?.value ?? "";
   const usageValue = usage.toString().toLowerCase();
   const rawTraits = runeItem?.system?.traits;
   const traits = Array.isArray(rawTraits?.value) ? rawTraits.value : [];
   const isRune = usageValue.startsWith("etched-onto") || traits.includes("property") || traits.includes("fundamental");
+
   if (!runeItem || !isRune) return;
 
   const options = buildRuneTargetOptions(actor, runeItem);
@@ -360,7 +370,13 @@ Hooks.once("ready", () => {
 Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId, consumeRune }) => {
   const runeItem = actor?.items?.get(runeId);
   const targetItem = actor?.items?.get(targetId);
-  if (!runeItem || !targetItem || !isRuneCompatible(runeItem, targetItem)) return;
+
+  DBG("attach", { rune: runeItem?.name, target: targetItem?.name });
+
+  if (!runeItem || !targetItem || !isRuneCompatible(runeItem, targetItem)) {
+    DBG("attach blocked", { runeItem, targetItem });
+    return;
+  }
 
   const shouldConsume =
     typeof consumeRune === "boolean"
@@ -368,6 +384,7 @@ Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId, consumeR
       : game.settings?.get?.(MODULE_ID, "consumeRuneOnApply");
 
   const runeCategory = getRuneCategory(runeItem);
+  DBG("runeCategory", runeCategory);
 
   if (runeCategory === "property") {
     const applied = await applyPropertyRune(runeItem, targetItem);
