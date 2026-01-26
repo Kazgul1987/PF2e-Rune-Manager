@@ -174,7 +174,12 @@ const getRuneCategory = (runeItem) => {
     return "property";
   }
 
-  return "fundamental";
+  const fundamentalData = getFundamentalRuneData(runeItem);
+  if (Object.keys(fundamentalData).length) {
+    return "fundamental";
+  }
+
+  return "property";
 };
 
 const sluggifyRuneName = (runeItem) => {
@@ -191,13 +196,80 @@ const sluggifyRuneName = (runeItem) => {
   return name.toString().toLowerCase().replace(/\s+/g, "-");
 };
 
+const getRuneDisplayName = (runeItem) =>
+  (runeItem?.name ?? runeItem?.system?.slug ?? runeItem?.slug ?? "").toString();
+
+const extractRuneBonus = (runeItem) => {
+  const runeData = runeItem?.system?.runes ?? {};
+  if (Number.isInteger(runeData?.potency)) {
+    return runeData.potency;
+  }
+
+  const name = getRuneDisplayName(runeItem);
+  const explicitBonusMatch = name.match(/[+＋]\s*(\d+)/);
+  if (explicitBonusMatch) {
+    return Number(explicitBonusMatch[1]);
+  }
+
+  return null;
+};
+
+const getFundamentalRuneData = (runeItem) => {
+  const runeData = runeItem?.system?.runes ?? {};
+  const runeName = getRuneDisplayName(runeItem);
+  const runeSlug = sluggifyRuneName(runeItem);
+  const normalizedName = `${runeName} ${runeSlug}`.toLowerCase();
+  const data = {};
+
+  const potencyBonus = runeData?.potency ?? extractRuneBonus(runeItem);
+  if (potencyBonus != null && /potency/i.test(normalizedName)) {
+    data.potency = potencyBonus;
+  }
+
+  if (runeData?.striking) {
+    data.striking = runeData.striking;
+  } else if (/major\s+striking/i.test(normalizedName)) {
+    data.striking = "majorStriking";
+  } else if (/greater\s+striking/i.test(normalizedName)) {
+    data.striking = "greaterStriking";
+  } else if (/striking/i.test(normalizedName)) {
+    data.striking = "striking";
+  }
+
+  if (runeData?.resilient) {
+    data.resilient = runeData.resilient;
+  } else if (/major\s+resilient/i.test(normalizedName)) {
+    data.resilient = "majorResilient";
+  } else if (/greater\s+resilient/i.test(normalizedName)) {
+    data.resilient = "greaterResilient";
+  } else if (/resilient/i.test(normalizedName)) {
+    data.resilient = "resilient";
+  }
+
+  if (runeData?.reinforcing) {
+    data.reinforcing = runeData.reinforcing;
+  } else if (/major\s+reinforcing/i.test(normalizedName)) {
+    data.reinforcing = "majorReinforcing";
+  } else if (/greater\s+reinforcing/i.test(normalizedName)) {
+    data.reinforcing = "greaterReinforcing";
+  } else if (/reinforcing/i.test(normalizedName)) {
+    data.reinforcing = "reinforcing";
+  }
+
+  if (runeData?.potency != null && data.potency == null) {
+    data.potency = runeData.potency;
+  }
+
+  return data;
+};
+
 const applyFundamentalRune = async (runeItem, targetItem) => {
   if (!runeItem || !targetItem) {
     return;
   }
 
   const updates = {};
-  const runeData = runeItem?.system?.runes ?? {};
+  const runeData = getFundamentalRuneData(runeItem);
 
   if (targetItem.type === "weapon") {
     if (runeData?.potency != null) {
@@ -215,9 +287,18 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
     if (runeData?.resilient != null) {
       updates["system.runes.resilient"] = runeData.resilient;
     }
+    if (runeData?.reinforcing != null) {
+      updates["system.runes.reinforcing"] = runeData.reinforcing;
+    }
   }
 
   if (targetItem.type === "shield") {
+    if (runeData?.potency != null) {
+      updates["system.runes.potency"] = runeData.potency;
+    }
+    if (runeData?.resilient != null) {
+      updates["system.runes.resilient"] = runeData.resilient;
+    }
     if (runeData?.reinforcing != null) {
       updates["system.runes.reinforcing"] = runeData.reinforcing;
     }
@@ -225,7 +306,14 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
 
   if (Object.keys(updates).length) {
     await targetItem.update(updates);
+    return;
   }
+
+  console.warn(
+    "[PF2E Rune Manager] Unable to map fundamental rune to target item.",
+    runeItem,
+    targetItem
+  );
 };
 
 const applyPropertyRune = async (runeItem, targetItem) => {
@@ -239,6 +327,11 @@ const applyPropertyRune = async (runeItem, targetItem) => {
 
   const runeSlug = sluggifyRuneName(runeItem);
   if (!systemRuneData || !systemPrunePropertyRunes || !runeSlug) {
+    console.warn(
+      "[PF2E Rune Manager] Unable to map property rune to target item.",
+      runeItem,
+      targetItem
+    );
     return;
   }
 
@@ -248,6 +341,11 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       : systemRuneData?.armor?.property;
 
   if (!propertyData || !propertyData[runeSlug]) {
+    console.warn(
+      "[PF2E Rune Manager] Unable to map property rune to target item.",
+      runeItem,
+      targetItem
+    );
     return;
   }
 
