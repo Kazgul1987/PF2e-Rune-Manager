@@ -547,9 +547,8 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
 
-  const propertyInfo = getPropertyRuneInfo(runeItem);
-  const runeSlug = propertyInfo?.slug ?? getRuneSlugFromItem(runeItem);
-  if (!systemRuneData || !systemPrunePropertyRunes || !runeSlug) {
+  const runeSlug = getRuneSlugFromItem(runeItem);
+  if (!runeSlug) {
     ui.notifications?.warn?.(
       game.i18n?.localize?.("PF2E.RuneManager.UnableToMapProperty") ??
         "Unable to map property rune to target item."
@@ -562,23 +561,27 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     return;
   }
 
-  const propertyData =
-    propertyInfo?.category === "weapon"
-      ? systemRuneData?.weapon?.property
-      : propertyInfo?.category === "armor"
-        ? systemRuneData?.armor?.property
-        : targetItem.type === "weapon"
-          ? systemRuneData?.weapon?.property
-          : systemRuneData?.armor?.property;
-
-  if (!propertyData || !propertyData[runeSlug]) {
-    await applyFundamentalRune(runeItem, targetItem);
+  if (!systemRuneData || !systemPrunePropertyRunes) {
     return;
   }
 
   const existing = targetItem?.system?.runes?.property ?? [];
-  const pruned = systemPrunePropertyRunes([...existing, runeSlug], propertyData);
-  await targetItem.update({ "system.runes.property": pruned });
+  if (targetItem.type === "weapon") {
+    const updated = systemPrunePropertyRunes(
+      [...existing, runeSlug],
+      systemRuneData.weapon?.property ?? {}
+    );
+    await targetItem.update({ "system.runes.property": updated });
+    return;
+  }
+
+  if (targetItem.type === "armor") {
+    const updated = systemPrunePropertyRunes(
+      [...existing, runeSlug],
+      systemRuneData.armor?.property ?? {}
+    );
+    await targetItem.update({ "system.runes.property": updated });
+  }
 };
 
 Hooks.on("renderActorSheetPF2e", (app, html) => {
