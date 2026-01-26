@@ -1,3 +1,13 @@
+const RUNE_USAGE = {
+  etchedOnto: "etched-onto",
+  etchedOntoHeavyArmor: "etched-onto-heavy-armor",
+  etchedOntoMediumArmor: "etched-onto-medium-armor",
+  etchedOntoLightArmor: "etched-onto-light-armor",
+  etchedOntoArmor: "etched-onto-armor",
+  etchedOntoWeapon: "etched-onto-a-weapon",
+  etchedOntoShield: "etched-onto-a-shield",
+};
+
 const getPropertyRuneSlots = (targetItem) => {
   const systemSlotsFn =
     globalThis.getPropertyRuneSlots ??
@@ -46,9 +56,15 @@ const isRuneCompatible = (runeItem, targetItem) => {
     rune?.toString().toLowerCase()
   );
 
-  const isWeaponTarget = runeUsage.includes("weapon") || runeTraits.includes("weapon");
-  const isArmorTarget = runeUsage.includes("armor") || runeTraits.includes("armor");
-  const isShieldTarget = runeUsage.includes("shield") || runeTraits.includes("shield");
+  // Prefer system usage values (see PF2e usage config) and only fall back to traits if needed.
+  const isEtchedUsage = runeUsage.startsWith(RUNE_USAGE.etchedOnto);
+  const isWeaponTarget = isEtchedUsage
+    ? runeUsage.includes("weapon")
+    : runeTraits.includes("weapon");
+  const isArmorTarget = isEtchedUsage ? runeUsage.includes("armor") : runeTraits.includes("armor");
+  const isShieldTarget = isEtchedUsage
+    ? runeUsage.includes("shield")
+    : runeTraits.includes("shield");
 
   if (isWeaponTarget && targetItem.type !== "weapon") {
     return false;
@@ -60,22 +76,22 @@ const isRuneCompatible = (runeItem, targetItem) => {
     return false;
   }
 
-  if (runeUsage.includes("etched-onto-heavy-armor") && targetCategory !== "heavy-armor") {
+  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoHeavyArmor) && targetCategory !== "heavy-armor") {
     return false;
   }
-  if (runeUsage.includes("etched-onto-medium-armor") && targetCategory !== "medium-armor") {
+  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoMediumArmor) && targetCategory !== "medium-armor") {
     return false;
   }
-  if (runeUsage.includes("etched-onto-light-armor") && targetCategory !== "light-armor") {
+  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoLightArmor) && targetCategory !== "light-armor") {
     return false;
   }
-  if (runeUsage.includes("etched-onto-armor") && targetItem.type !== "armor") {
+  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoArmor) && targetItem.type !== "armor") {
     return false;
   }
-  if (runeUsage.includes("etched-onto-a-weapon") && targetItem.type !== "weapon") {
+  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoWeapon) && targetItem.type !== "weapon") {
     return false;
   }
-  if (runeUsage.includes("etched-onto-a-shield") && targetItem.type !== "shield") {
+  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoShield) && targetItem.type !== "shield") {
     return false;
   }
 
