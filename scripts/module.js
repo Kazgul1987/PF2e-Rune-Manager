@@ -202,13 +202,9 @@ const isRuneCompatible = (runeItem, targetItem) => {
   const runeSlug = sluggifyRuneName(runeItem);
 
   if (systemRuneData && systemPrunePropertyRunes && runeSlug) {
-    const weaponPropertyRunes = systemRuneData.weapon?.property;
-    const armorPropertyRunes = systemRuneData.armor?.property;
-    const validTypes = weaponPropertyRunes?.[runeSlug]
-      ? weaponPropertyRunes
-      : armorPropertyRunes?.[runeSlug]
-        ? armorPropertyRunes
-        : null;
+    const weaponPropertyRunes = systemRuneData.weapon?.property?.[runeSlug];
+    const armorPropertyRunes = systemRuneData.armor?.property?.[runeSlug];
+    const validTypes = weaponPropertyRunes ?? armorPropertyRunes ?? null;
 
     if (validTypes) {
       const pruned = systemPrunePropertyRunes([runeSlug], validTypes);
