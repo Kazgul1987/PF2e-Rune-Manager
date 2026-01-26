@@ -629,10 +629,15 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   }
 
   const existing = targetItem?.system?.runes?.property ?? [];
-  const slotCount = getPropertyRuneSlots(targetItem);
+  const maxSlots = getPropertyRuneSlots(targetItem);
   const usedSlots = targetItem?.system?.runes?.property?.length ?? 0;
   const weaponPropertyData = systemRuneData.weapon?.property;
   const armorPropertyData = systemRuneData.armor?.property;
+
+  if (usedSlots >= maxSlots) {
+    warn("Unable to apply property rune: the target item has no available property rune slots.");
+    return false;
+  }
 
   if (targetItem.type === "weapon") {
     if (!weaponPropertyData) {
@@ -643,7 +648,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       warn(`Unable to apply property rune: "${runeSlug}" is not a weapon property rune.`);
       return false;
     }
-    if (!slotCount || slotCount - usedSlots <= 0) {
+    if (!maxSlots || maxSlots - usedSlots <= 0) {
       warn("Unable to apply property rune: no weapon property rune slots available.");
       return false;
     }
@@ -661,7 +666,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       warn(`Unable to apply property rune: "${runeSlug}" is not an armor property rune.`);
       return false;
     }
-    if (!slotCount || slotCount - usedSlots <= 0) {
+    if (!maxSlots || maxSlots - usedSlots <= 0) {
       warn("Unable to apply property rune: no armor property rune slots available.");
       return false;
     }
