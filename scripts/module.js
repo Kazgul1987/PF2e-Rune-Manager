@@ -246,7 +246,19 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
   itemRows.each((_index, row) => {
     const itemId = row.dataset.itemId;
     const item = app.actor?.items?.get(itemId);
-    const isRune = item?.type === "rune" || item?.system?.type === "rune";
+    const usage = item?.system?.usage?.value ?? "";
+    const usageValue = usage.toString().toLowerCase();
+    const itemType = item?.type ?? item?.system?.type ?? "";
+    const itemTraits = (item?.system?.traits?.value ?? item?.system?.traits ?? [])
+      .filter(Boolean)
+      .map((trait) => trait.toString().toLowerCase());
+    const isRune =
+      usageValue.startsWith("etched-onto") ||
+      (!usageValue &&
+        (itemType === "rune" ||
+          itemTraits.includes("rune") ||
+          itemTraits.includes("property") ||
+          itemTraits.includes("fundamental")));
     if (!isRune) {
       return;
     }
@@ -269,7 +281,19 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
       const itemId = event.currentTarget.closest("li[data-item-id]")?.dataset.itemId;
       const actor = app.actor;
       const runeItem = actor?.items?.get(itemId);
-      const isRune = runeItem?.type === "rune" || runeItem?.system?.type === "rune";
+      const usage = runeItem?.system?.usage?.value ?? "";
+      const usageValue = usage.toString().toLowerCase();
+      const runeType = runeItem?.type ?? runeItem?.system?.type ?? "";
+      const runeTraits = (runeItem?.system?.traits?.value ?? runeItem?.system?.traits ?? [])
+        .filter(Boolean)
+        .map((trait) => trait.toString().toLowerCase());
+      const isRune =
+        usageValue.startsWith("etched-onto") ||
+        (!usageValue &&
+          (runeType === "rune" ||
+            runeTraits.includes("rune") ||
+            runeTraits.includes("property") ||
+            runeTraits.includes("fundamental")));
       if (!runeItem || !isRune) {
         return;
       }
