@@ -1,5 +1,5 @@
 {
-  "name": "pf2e-rune-manager",
+  "id": "pf2e-rune-manager",
   "title": "PF2e Rune Manager",
   "version": "0.1.0",
   "description": "Adds rune management helpers to Pathfinder Second Edition actor sheets.",
