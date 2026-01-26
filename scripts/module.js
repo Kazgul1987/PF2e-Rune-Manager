@@ -607,8 +607,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
 
-  const slug = runeItem?.system?.slug ?? runeItem?.slug;
-  const runeSlug = slug?.toString().toLowerCase() ?? "";
+  const runeSlug = sluggifyRuneName(runeItem);
 
   const warn = (message) => {
     ui.notifications?.warn?.(message);
@@ -618,13 +617,13 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   if (!runeSlug) {
     warn(
       game.i18n?.localize?.("PF2E.RuneManager.UnableToMapProperty") ??
-        "Unable to map property rune: missing slug."
+      "Unable to apply property rune: missing slug."
     );
     return false;
   }
 
   if (!systemRuneData || !systemPrunePropertyRunes) {
-    warn("Unable to map property rune: PF2e rune data is unavailable.");
+    warn("Unable to apply property rune: PF2e rune data is unavailable.");
     return false;
   }
 
@@ -635,7 +634,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const armorPropertyData = systemRuneData.armor?.property;
 
   if (usedSlots >= maxSlots) {
-    warn("Unable to apply property rune: the target item has no available property rune slots.");
+    warn("Unable to apply property rune: no available property rune slots.");
     return false;
   }
 
@@ -649,7 +648,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       return false;
     }
     if (!maxSlots || maxSlots - usedSlots <= 0) {
-      warn("Unable to apply property rune: no weapon property rune slots available.");
+      warn("Unable to apply property rune: no available property rune slots.");
       return false;
     }
     const updated = systemPrunePropertyRunes([...existing, runeSlug], weaponPropertyData);
@@ -667,7 +666,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       return false;
     }
     if (!maxSlots || maxSlots - usedSlots <= 0) {
-      warn("Unable to apply property rune: no armor property rune slots available.");
+      warn("Unable to apply property rune: no available property rune slots.");
       return false;
     }
     const updated = systemPrunePropertyRunes([...existing, runeSlug], armorPropertyData);
