@@ -446,9 +446,10 @@ const getFundamentalRuneData = (runeItem) => {
   const runeSlug = sluggifyRuneName(runeItem);
   const nameSlug = sluggifyText(runeItem?.name ?? "");
   const normalizedName = normalizeRuneText(`${runeName} ${runeSlug}`);
-  const strikingFallbackSource =
-    runeItem?.system?.slug ?? runeItem?.slug ?? runeItem?.name ?? "";
-  const normalizedStrikingFallbackSource = normalizeRuneText(strikingFallbackSource);
+  const strikingSlugSource = runeItem?.system?.slug ?? "";
+  const strikingNameSource = runeItem?.name ?? runeItem?.slug ?? "";
+  const normalizedStrikingSlugSource = normalizeRuneText(strikingSlugSource);
+  const normalizedStrikingNameSource = normalizeRuneText(strikingNameSource);
   let systemFundamentalData = getSystemFundamentalRuneData(runeSlug);
   if (!Object.keys(systemFundamentalData).length && nameSlug && nameSlug !== runeSlug) {
     systemFundamentalData = getSystemFundamentalRuneData(nameSlug);
@@ -472,19 +473,37 @@ const getFundamentalRuneData = (runeItem) => {
       runeData?.striking ??
       (typeof systemFundamentalData.striking === "string"
         ? systemFundamentalData.striking
-        : null);
+        : "striking");
   } else if (runeData?.striking) {
     data.striking = runeData.striking;
-  } else if (allowNameFallback && normalizedStrikingFallbackSource.includes("major striking")) {
+  } else if (
+    allowNameFallback &&
+    normalizedStrikingSlugSource &&
+    normalizedStrikingSlugSource.includes("major striking")
+  ) {
     data.striking = "majorStriking";
-  } else if (allowNameFallback && normalizedStrikingFallbackSource.includes("greater striking")) {
+  } else if (
+    allowNameFallback &&
+    normalizedStrikingSlugSource &&
+    normalizedStrikingSlugSource.includes("greater striking")
+  ) {
     data.striking = "greaterStriking";
-  } else if (allowNameFallback && normalizedStrikingFallbackSource.includes("striking")) {
+  } else if (
+    allowNameFallback &&
+    normalizedStrikingSlugSource &&
+    normalizedStrikingSlugSource.includes("striking")
+  ) {
     data.striking = "striking";
-  } else if (allowNameFallback && strikingFallbackSource) {
+  } else if (allowNameFallback && normalizedStrikingNameSource.includes("major striking")) {
+    data.striking = "majorStriking";
+  } else if (allowNameFallback && normalizedStrikingNameSource.includes("greater striking")) {
+    data.striking = "greaterStriking";
+  } else if (allowNameFallback && normalizedStrikingNameSource.includes("striking")) {
+    data.striking = "striking";
+  } else if (allowNameFallback && (strikingSlugSource || strikingNameSource)) {
     console.warn(
       "[PF2E Rune Manager] Unable to map striking rune from fallback source.",
-      strikingFallbackSource,
+      strikingSlugSource || strikingNameSource,
       runeItem
     );
   }
@@ -574,14 +593,17 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
     return true;
   }
 
+  const runeName = getRuneDisplayName(runeItem);
+  const runeSlug = sluggifyRuneName(runeItem);
+  console.warn(
+    "[PF2E Rune Manager] Unable to map fundamental rune updates for rune.",
+    { name: runeName, slug: runeSlug },
+    runeItem,
+    targetItem
+  );
   ui.notifications?.warn?.(
     game.i18n?.localize?.("PF2E.RuneManager.UnableToMapFundamental") ??
       "Unable to map fundamental rune to target item."
-  );
-  console.warn(
-    "[PF2E Rune Manager] Unable to map fundamental rune to target item.",
-    runeItem,
-    targetItem
   );
   return false;
 };
