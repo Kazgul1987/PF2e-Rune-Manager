@@ -144,6 +144,102 @@ const buildRuneTargetOptions = (actor, rune) => {
   return actorItems.filter((item) => isRuneCompatible(rune, item));
 };
 
+const getRuneCategory = (runeItem) => {
+  const runeTraits = getRuneTraits(runeItem);
+  const runeType =
+    runeItem?.system?.runes?.type ??
+    runeItem?.system?.runes?.category ??
+    runeItem?.system?.runes?.value ??
+    runeItem?.system?.runeType ??
+    "";
+  const normalizedType = runeType.toString().toLowerCase();
+
+  if (normalizedType === "property" || runeTraits.includes("property")) {
+    return "property";
+  }
+
+  return "fundamental";
+};
+
+const sluggifyRuneName = (runeItem) => {
+  const sluggifyFn =
+    globalThis.sluggify ??
+    globalThis.game?.pf2e?.sluggify ??
+    globalThis.game?.pf2e?.system?.sluggify;
+  const name = runeItem?.name ?? runeItem?.system?.slug ?? runeItem?.slug ?? "";
+
+  if (typeof sluggifyFn === "function") {
+    return sluggifyFn(name);
+  }
+
+  return name.toString().toLowerCase().replace(/\s+/g, "-");
+};
+
+const applyFundamentalRune = async (runeItem, targetItem) => {
+  if (!runeItem || !targetItem) {
+    return;
+  }
+
+  const updates = {};
+  const runeData = runeItem?.system?.runes ?? {};
+
+  if (targetItem.type === "weapon") {
+    if (runeData?.potency != null) {
+      updates["system.runes.potency"] = runeData.potency;
+    }
+    if (runeData?.striking != null) {
+      updates["system.runes.striking"] = runeData.striking;
+    }
+  }
+
+  if (targetItem.type === "armor") {
+    if (runeData?.potency != null) {
+      updates["system.runes.potency"] = runeData.potency;
+    }
+    if (runeData?.resilient != null) {
+      updates["system.runes.resilient"] = runeData.resilient;
+    }
+  }
+
+  if (targetItem.type === "shield") {
+    if (runeData?.reinforcing != null) {
+      updates["system.runes.reinforcing"] = runeData.reinforcing;
+    }
+  }
+
+  if (Object.keys(updates).length) {
+    await targetItem.update(updates);
+  }
+};
+
+const applyPropertyRune = async (runeItem, targetItem) => {
+  if (!runeItem || !targetItem) {
+    return;
+  }
+
+  const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
+  const systemPrunePropertyRunes =
+    globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
+
+  const runeSlug = sluggifyRuneName(runeItem);
+  if (!systemRuneData || !systemPrunePropertyRunes || !runeSlug) {
+    return;
+  }
+
+  const propertyData =
+    targetItem.type === "weapon"
+      ? systemRuneData?.weapon?.property
+      : systemRuneData?.armor?.property;
+
+  if (!propertyData || !propertyData[runeSlug]) {
+    return;
+  }
+
+  const existing = targetItem?.system?.runes?.property ?? [];
+  const pruned = systemPrunePropertyRunes([...existing, runeSlug], propertyData);
+  await targetItem.update({ "system.runes.property": pruned });
+};
+
 Hooks.on("renderActorSheetPF2e", (app, html) => {
   const itemRows = html.find("li[data-item-id]");
 
@@ -227,4 +323,20 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
         default: "confirm",
       }).render(true);
     });
+});
+
+Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId }) => {
+  const runeItem = actor?.items?.get(runeId);
+  const targetItem = actor?.items?.get(targetId);
+  if (!runeItem || !targetItem || !isRuneCompatible(runeItem, targetItem)) {
+    return;
+  }
+
+  const runeCategory = getRuneCategory(runeItem);
+  if (runeCategory === "property") {
+    await applyPropertyRune(runeItem, targetItem);
+    return;
+  }
+
+  await applyFundamentalRune(runeItem, targetItem);
 });
