@@ -243,11 +243,7 @@ const getRuneCategory = (runeItem) => {
   }
 
   const fundamentalData = getFundamentalRuneData(runeItem);
-  if (Object.keys(fundamentalData).length) {
-    return "fundamental";
-  }
-
-  return null;
+  return Object.keys(fundamentalData).length ? "fundamental" : null;
 };
 
 const sluggifyText = (value) => {
