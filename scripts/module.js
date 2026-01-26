@@ -588,26 +588,45 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const systemPrunePropertyRunes =
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
 
-  const runeSlug = sluggifyRuneName(runeItem);
+  const sluggify =
+    globalThis.sluggify ??
+    globalThis.game?.pf2e?.sluggify ??
+    globalThis.game?.pf2e?.system?.sluggify ??
+    sluggifyText;
+  const slug = runeItem?.system?.slug ?? runeItem?.slug ?? sluggify(runeItem?.name ?? "");
+  const runeSlug = slug?.toString().toLowerCase() ?? "";
+
+  const warn = (message) => {
+    ui.notifications?.warn?.(message);
+    console.warn(`[PF2E Rune Manager] ${message}`, runeItem, targetItem);
+  };
+
   if (!runeSlug) {
-    ui.notifications?.warn?.(
+    warn(
       game.i18n?.localize?.("PF2E.RuneManager.UnableToMapProperty") ??
-        "Unable to map property rune to target item."
-    );
-    console.warn(
-      "[PF2E Rune Manager] Unable to map property rune to target item.",
-      runeItem,
-      targetItem
+        "Unable to map property rune: missing slug."
     );
     return false;
   }
 
   if (!systemRuneData || !systemPrunePropertyRunes) {
+    warn("Unable to map property rune: PF2e rune data is unavailable.");
     return false;
   }
 
   const existing = targetItem?.system?.runes?.property ?? [];
+  const slotCount = getPropertyRuneSlots(targetItem);
+  const usedSlots = targetItem?.system?.runes?.property?.length ?? 0;
+
   if (targetItem.type === "weapon") {
+    if (!(runeSlug in (systemRuneData.weapon?.property ?? {}))) {
+      warn(`Unable to apply property rune: "${runeSlug}" is not a weapon property rune.`);
+      return false;
+    }
+    if (!slotCount || slotCount - usedSlots <= 0) {
+      warn("Unable to apply property rune: no weapon property rune slots available.");
+      return false;
+    }
     const updated = systemPrunePropertyRunes(
       [...existing, runeSlug],
       systemRuneData.weapon?.property ?? {}
@@ -617,6 +636,14 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   }
 
   if (targetItem.type === "armor") {
+    if (!(runeSlug in (systemRuneData.armor?.property ?? {}))) {
+      warn(`Unable to apply property rune: "${runeSlug}" is not an armor property rune.`);
+      return false;
+    }
+    if (!slotCount || slotCount - usedSlots <= 0) {
+      warn("Unable to apply property rune: no armor property rune slots available.");
+      return false;
+    }
     const updated = systemPrunePropertyRunes(
       [...existing, runeSlug],
       systemRuneData.armor?.property ?? {}
@@ -625,6 +652,12 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     return true;
   }
 
+  if (targetItem.type === "shield") {
+    warn("Unable to apply property rune: shield runes are modeled differently in PF2e.");
+    return false;
+  }
+
+  warn("Unable to apply property rune: target item is not a weapon or armor.");
   return false;
 };
 
