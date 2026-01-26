@@ -151,3 +151,7 @@ const renderActorSheetHook = (app, html) => {
     controls.append(attachRunesControl);
   });
 };
+
+Hooks.once("init", () => {
+  Hooks.on("renderActorSheetPF2e", renderActorSheetHook);
+});
