@@ -31,6 +31,14 @@ const getRuneTraits = (runeItem) =>
     .filter(Boolean)
     .map((trait) => trait.toString().toLowerCase());
 
+const getItemTraits = (item) =>
+  (item?.system?.traits?.value ?? item?.system?.traits ?? [])
+    .filter(Boolean)
+    .map((trait) => trait.toString().toLowerCase());
+
+const isItemType = (item, type) =>
+  typeof item?.isOfType === "function" ? item.isOfType(type) : item?.type === type;
+
 const isRuneCompatible = (runeItem, targetItem) => {
   if (!runeItem || !targetItem) {
     return false;
@@ -55,6 +63,28 @@ const isRuneCompatible = (runeItem, targetItem) => {
   const targetPropertyRunes = (targetItem?.system?.runes?.property ?? []).map((rune) =>
     rune?.toString().toLowerCase()
   );
+  const targetTraits = getItemTraits(targetItem);
+  const targetMaterialType = targetItem?.system?.material?.type?.toString().toLowerCase() ?? "";
+  const targetRange =
+    Number(targetItem?.system?.range?.value ?? targetItem?.system?.range ?? 0) || 0;
+  const targetBaseItem = targetItem?.system?.baseItem?.toString().toLowerCase() ?? "";
+  const targetSlug = targetItem?.slug ?? targetItem?.system?.slug ?? "";
+  const targetNameSlug = (targetItem?.name ?? "").toString().toLowerCase().replace(/\s+/g, "-");
+
+  const isWeapon = isItemType(targetItem, "weapon");
+  const isArmor = isItemType(targetItem, "armor");
+  const isShield = isItemType(targetItem, "shield");
+  const isThrownWeapon = isWeapon && targetTraits.includes("thrown");
+  const isMeleeWeapon =
+    isWeapon && (targetTraits.includes("melee") || (!targetRange && !isThrownWeapon));
+  const isMetalArmor =
+    isArmor && (targetTraits.includes("metal") || targetMaterialType === "metal");
+  const isNonmetalArmor =
+    isArmor && (targetTraits.includes("nonmetal") || targetMaterialType === "nonmetal");
+  const isClanDagger =
+    targetBaseItem === "clan-dagger" ||
+    targetSlug.toString().toLowerCase() === "clan-dagger" ||
+    targetNameSlug === "clan-dagger";
 
   // Prefer system usage values (see PF2e usage config) and only fall back to traits if needed.
   const isEtchedUsage = runeUsage.startsWith(RUNE_USAGE.etchedOnto);
@@ -76,22 +106,43 @@ const isRuneCompatible = (runeItem, targetItem) => {
     return false;
   }
 
-  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoHeavyArmor) && targetCategory !== "heavy-armor") {
-    return false;
-  }
-  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoMediumArmor) && targetCategory !== "medium-armor") {
-    return false;
-  }
-  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoLightArmor) && targetCategory !== "light-armor") {
-    return false;
-  }
-  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoArmor) && targetItem.type !== "armor") {
-    return false;
-  }
-  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoWeapon) && targetItem.type !== "weapon") {
-    return false;
-  }
-  if (runeUsage.startsWith(RUNE_USAGE.etchedOntoShield) && targetItem.type !== "shield") {
+  const usageChecks = {
+    "etched-onto-a-weapon": () => isWeapon,
+    "etched-onto-a-shield": () => isShield,
+    "etched-onto-armor": () => isArmor,
+    "etched-onto-heavy-armor": () => isArmor && targetCategory === "heavy-armor",
+    "etched-onto-medium-armor": () => isArmor && targetCategory === "medium-armor",
+    "etched-onto-light-armor": () => isArmor && targetCategory === "light-armor",
+    "etched-onto-metal-armor": () => isArmor && isMetalArmor,
+    "etched-onto-lm-nonmetal-armor": () =>
+      isArmor &&
+      ["light-armor", "medium-armor"].includes(targetCategory) &&
+      isNonmetalArmor,
+    "etched-onto-med-heavy-armor": () =>
+      isArmor && ["medium-armor", "heavy-armor"].includes(targetCategory),
+    "etched-onto-medium-heavy-metal-armor": () =>
+      isArmor && ["medium-armor", "heavy-armor"].includes(targetCategory) && isMetalArmor,
+    "etched-onto-bludgeoning-weapon": () => isWeapon && targetDamageType === "bludgeoning",
+    "etched-onto-melee-weapon": () => isWeapon && isMeleeWeapon,
+    "etched-onto-melee-weapon-monk": () => isWeapon && isMeleeWeapon && targetTraits.includes("monk"),
+    "etched-onto-slashing-melee-weapon": () =>
+      isWeapon && isMeleeWeapon && targetDamageType === "slashing",
+    "etched-onto-piercing-or-slashing-melee-weapon": () =>
+      isWeapon &&
+      isMeleeWeapon &&
+      ["piercing", "slashing"].includes(targetDamageType),
+    "etched-onto-piercing-or-slashing-weapon": () =>
+      isWeapon && ["piercing", "slashing"].includes(targetDamageType),
+    "etched-onto-weapon-wo-anarchic-rune": () => isWeapon && !targetPropertyRunes.includes("anarchic"),
+    "etched-onto-weapon-wo-axiomatic-rune": () =>
+      isWeapon && !targetPropertyRunes.includes("axiomatic"),
+    "etched-onto-weapon-wo-unholy-rune": () => isWeapon && !targetPropertyRunes.includes("unholy"),
+    "etched-onto-weapon-wo-holy-rune": () => isWeapon && !targetPropertyRunes.includes("holy"),
+    "etched-onto-clan-dagger": () => isWeapon && isClanDagger,
+    "etched-onto-thrown-weapon": () => isWeapon && isThrownWeapon,
+  };
+  const usageCheck = usageChecks[runeUsage];
+  if (usageCheck && !usageCheck()) {
     return false;
   }
 
