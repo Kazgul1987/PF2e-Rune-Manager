@@ -201,16 +201,20 @@ const isRuneCompatible = (runeItem, targetItem) => {
     globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
   const runeSlug = sluggifyRuneName(runeItem);
 
-  if (
-    systemRuneData &&
-    systemPrunePropertyRunes &&
-    (runeType === "property" || runeTraits.includes("property")) &&
-    runeSlug &&
-    systemRuneData[runeSlug]
-  ) {
-    const pruned = systemPrunePropertyRunes([runeSlug], targetItem);
-    if (Array.isArray(pruned) && !pruned.includes(runeSlug)) {
-      return false;
+  if (systemRuneData && systemPrunePropertyRunes && runeSlug) {
+    const weaponPropertyRunes = systemRuneData.weapon?.property;
+    const armorPropertyRunes = systemRuneData.armor?.property;
+    const validTypes = weaponPropertyRunes?.[runeSlug]
+      ? weaponPropertyRunes
+      : armorPropertyRunes?.[runeSlug]
+        ? armorPropertyRunes
+        : null;
+
+    if (validTypes) {
+      const pruned = systemPrunePropertyRunes([runeSlug], validTypes);
+      if (Array.isArray(pruned) && !pruned.includes(runeSlug)) {
+        return false;
+      }
     }
   }
 
