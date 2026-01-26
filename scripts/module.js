@@ -424,6 +424,9 @@ const getFundamentalRuneData = (runeItem) => {
   const runeSlug = sluggifyRuneName(runeItem);
   const nameSlug = sluggifyText(runeItem?.name ?? "");
   const normalizedName = normalizeRuneText(`${runeName} ${runeSlug}`);
+  const strikingFallbackSource =
+    runeItem?.system?.slug ?? runeItem?.slug ?? runeItem?.name ?? "";
+  const normalizedStrikingFallbackSource = normalizeRuneText(strikingFallbackSource);
   let systemFundamentalData = getSystemFundamentalRuneData(runeSlug);
   if (!Object.keys(systemFundamentalData).length && nameSlug && nameSlug !== runeSlug) {
     systemFundamentalData = getSystemFundamentalRuneData(nameSlug);
@@ -450,12 +453,18 @@ const getFundamentalRuneData = (runeItem) => {
         : null);
   } else if (runeData?.striking) {
     data.striking = runeData.striking;
-  } else if (allowNameFallback && normalizedName.includes("major striking")) {
+  } else if (allowNameFallback && normalizedStrikingFallbackSource.includes("major striking")) {
     data.striking = "majorStriking";
-  } else if (allowNameFallback && normalizedName.includes("greater striking")) {
+  } else if (allowNameFallback && normalizedStrikingFallbackSource.includes("greater striking")) {
     data.striking = "greaterStriking";
-  } else if (allowNameFallback && normalizedName.includes("striking")) {
+  } else if (allowNameFallback && normalizedStrikingFallbackSource.includes("striking")) {
     data.striking = "striking";
+  } else if (allowNameFallback && strikingFallbackSource) {
+    console.warn(
+      "[PF2E Rune Manager] Unable to map striking rune from fallback source.",
+      strikingFallbackSource,
+      runeItem
+    );
   }
 
   if (systemFundamentalData.resilient) {
