@@ -8,6 +8,21 @@ const RUNE_USAGE = {
   etchedOntoShield: "etched-onto-a-shield",
 };
 
+const MODULE_ID = "pf2e-rune-manager";
+
+Hooks.once("init", () => {
+  game.settings?.register(MODULE_ID, "consumeRuneOnApply", {
+    name: game.i18n?.localize?.("PF2E.RuneManager.ConsumeRuneSettingName") ?? "Consume rune on apply",
+    hint:
+      game.i18n?.localize?.("PF2E.RuneManager.ConsumeRuneSettingHint") ??
+      "Delete the rune item after it is applied to a target.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
+});
+
 const getPropertyRuneSlots = (targetItem) => {
   const systemSlotsFn =
     globalThis.getPropertyRuneSlots ??
@@ -508,7 +523,7 @@ const getFundamentalRuneData = (runeItem) => {
 
 const applyFundamentalRune = async (runeItem, targetItem) => {
   if (!runeItem || !targetItem) {
-    return;
+    return false;
   }
 
   const updates = {};
@@ -549,7 +564,7 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
 
   if (Object.keys(updates).length) {
     await targetItem.update(updates);
-    return;
+    return true;
   }
 
   ui.notifications?.warn?.(
@@ -561,11 +576,12 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
     runeItem,
     targetItem
   );
+  return false;
 };
 
 const applyPropertyRune = async (runeItem, targetItem) => {
   if (!runeItem || !targetItem) {
-    return;
+    return false;
   }
 
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
@@ -583,11 +599,11 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       runeItem,
       targetItem
     );
-    return;
+    return false;
   }
 
   if (!systemRuneData || !systemPrunePropertyRunes) {
-    return;
+    return false;
   }
 
   const existing = targetItem?.system?.runes?.property ?? [];
@@ -597,7 +613,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       systemRuneData.weapon?.property ?? {}
     );
     await targetItem.update({ "system.runes.property": updated });
-    return;
+    return true;
   }
 
   if (targetItem.type === "armor") {
@@ -606,7 +622,10 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       systemRuneData.armor?.property ?? {}
     );
     await targetItem.update({ "system.runes.property": updated });
+    return true;
   }
+
+  return false;
 };
 
 Hooks.on("renderActorSheetPF2e", (app, html) => {
@@ -696,6 +715,16 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
                 .join("")}
             </select>
           </div>
+          <div class="form-group">
+            <label>
+              <input
+                type="checkbox"
+                name="consume-rune"
+                ${game.settings?.get?.(MODULE_ID, "consumeRuneOnApply") ? "checked" : ""}
+              />
+              ${game.i18n?.localize?.("PF2E.RuneManager.ConsumeRune") ?? "Consume rune item"}
+            </label>
+          </div>
         </form>
       `;
 
@@ -707,6 +736,7 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
             label: game.i18n?.localize?.("PF2E.RuneManager.Confirm") ?? "Confirm",
             callback: (dialogHtml) => {
               const targetId = dialogHtml.find("select[name='rune-target']").val();
+              const consumeRune = dialogHtml.find("input[name='consume-rune']").prop("checked");
               if (!targetId) {
                 return;
               }
@@ -718,6 +748,7 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
                 actor,
                 runeId: itemId,
                 targetId,
+                consumeRune,
               });
             },
           },
@@ -730,18 +761,28 @@ Hooks.on("renderActorSheetPF2e", (app, html) => {
     });
 });
 
-Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId }) => {
+Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId, consumeRune }) => {
   const runeItem = actor?.items?.get(runeId);
   const targetItem = actor?.items?.get(targetId);
   if (!runeItem || !targetItem || !isRuneCompatible(runeItem, targetItem)) {
     return;
   }
 
+  const shouldConsume =
+    typeof consumeRune === "boolean"
+      ? consumeRune
+      : game.settings?.get?.(MODULE_ID, "consumeRuneOnApply");
   const runeCategory = getRuneCategory(runeItem);
   if (runeCategory === "property") {
-    await applyPropertyRune(runeItem, targetItem);
+    const applied = await applyPropertyRune(runeItem, targetItem);
+    if (applied && shouldConsume) {
+      await runeItem.delete();
+    }
     return;
   }
 
-  await applyFundamentalRune(runeItem, targetItem);
+  const applied = await applyFundamentalRune(runeItem, targetItem);
+  if (applied && shouldConsume) {
+    await runeItem.delete();
+  }
 });
