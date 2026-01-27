@@ -4,6 +4,30 @@ const CLICK_NAMESPACE = ".pf2eRuneManager";
 
 const DBG = (...args) => console.log("[RuneManager DBG]", ...args);
 
+const FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS = new Set([
+  "anarchic",
+  "axiomatic",
+  "bane",
+  "brilliant",
+  "corrosive",
+  "cruel",
+  "dancing",
+  "disrupting",
+  "flaming",
+  "frost",
+  "ghost-touch",
+  "holy",
+  "keen",
+  "merciful",
+  "returning",
+  "shock",
+  "shifting",
+  "speed",
+  "thundering",
+  "vorpal",
+  "wounding",
+]);
+
 Hooks.once("init", () => {
   game.settings?.register(MODULE_ID, "consumeRuneOnApply", {
     name: "Consume rune on apply",
@@ -187,6 +211,10 @@ const getRuneCategory = (runeItem) => {
     return "property";
   }
 
+  if (slug && !systemRuneData && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(slug)) {
+    return "weapon";
+  }
+
   const fundamental = getFundamentalRuneData(runeItem);
   if (Object.keys(fundamental).length) return "fundamental";
 
@@ -225,15 +253,20 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   const runeSlug = sluggifyRuneName(runeItem);
   DBG("applyPropertyRune", { rune: runeItem?.name, runeSlug });
 
-  if (!systemRuneData || !systemPrunePropertyRunes) {
-    ui.notifications?.warn?.("PF2e rune data unavailable.");
-    return false;
-  }
-
   const existing = targetItem?.system?.runes?.property ?? [];
   const maxSlots = getPropertyRuneSlots(targetItem);
   if (!maxSlots || existing.length >= maxSlots) {
     ui.notifications?.warn?.("No available property rune slots.");
+    return false;
+  }
+
+  if (!systemRuneData || !systemPrunePropertyRunes) {
+    if (targetItem.type === "weapon" && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(runeSlug)) {
+      const updated = Array.from(new Set([...existing, runeSlug]));
+      await targetItem.update({ "system.runes.property": updated });
+      return true;
+    }
+    ui.notifications?.warn?.("PF2e rune data unavailable.");
     return false;
   }
 
@@ -386,7 +419,7 @@ Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId, consumeR
   const runeCategory = getRuneCategory(runeItem);
   DBG("runeCategory", runeCategory);
 
-  if (runeCategory === "property") {
+  if (runeCategory === "property" || runeCategory === "weapon") {
     const applied = await applyPropertyRune(runeItem, targetItem);
     if (applied && shouldConsume) await runeItem.delete();
     return;
