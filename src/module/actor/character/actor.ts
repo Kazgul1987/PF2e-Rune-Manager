@@ -285,8 +285,8 @@ export class CharacterActor {
       return false;
     }
 
-    const propertyRuneSlug = this.getPropertyRuneSlug(runeItem.name);
     const fundamentalUpdate = this.getFundamentalRuneUpdate(runeItem.name);
+    const propertyRuneSlug = fundamentalUpdate ? null : this.normalizeRuneSlug(runeItem.name);
     if (!propertyRuneSlug && !fundamentalUpdate) {
       ui.notifications?.error("Diese Rune wird aktuell nicht unterstützt.");
       return false;
