@@ -657,9 +657,23 @@ export class CharacterActor {
     resilient?: string;
     reinforcing?: string;
   } | null {
-    const directDefinition = RUNE_NAME_MAP[runeName];
-    if (directDefinition?.fundamental) {
-      return directDefinition.fundamental;
+    const runeDefinition = this.getRuneDefinition(
+      runeName,
+      this.getRuneItemSlug(runeItem)
+    );
+    if (runeDefinition?.fundamental) {
+      return runeDefinition.fundamental;
+    }
+
+    if (runeDefinition && !runeDefinition.fundamental) {
+      // Manual examples for debugging:
+      // "Striking Rune", "Greater Striking Rune", "Striking-Rune",
+      // localized names with hyphens (e.g. "Waffen-Potenzrune +1").
+      const normalizedName = this.normalizeRuneSlug(runeName);
+      const fallbackFundamental = FUNDAMENTAL_RUNE_FALLBACKS[normalizedName];
+      if (fallbackFundamental) {
+        return fallbackFundamental;
+      }
     }
 
     const normalizedSlug = this.getNormalizedRuneSlug(
