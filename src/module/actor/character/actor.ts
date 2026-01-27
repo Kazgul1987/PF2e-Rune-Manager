@@ -148,6 +148,34 @@ const RUNE_NAME_MAP: Record<string, RuneNameDefinition> = {
   },
 };
 
+const PROPERTY_RUNE_FALLBACKS: Record<string, string> = {
+  flaming: "flaming",
+  frost: "frost",
+  shock: "shock",
+  thundering: "thundering",
+  corrosive: "corrosive",
+  "ghost-touch": "ghostTouch",
+  returning: "returning",
+  shifting: "shifting",
+  speed: "speed",
+  vorpal: "vorpal",
+  wounding: "wounding",
+  anarchic: "anarchic",
+  axiomatic: "axiomatic",
+  holy: "holy",
+  unholy: "unholy",
+  disrupting: "disrupting",
+  grievous: "grievous",
+  keen: "keen",
+  brilliant: "brilliant",
+  merciful: "merciful",
+  fanged: "fanged",
+  anchoring: "anchoring",
+  impactful: "impactful",
+  dancing: "dancing",
+  "spell-storing": "spellStoring",
+};
+
 export class CharacterActor {
   constructor(private readonly actor: RuneManagerActor) {}
 
@@ -335,7 +363,41 @@ export class CharacterActor {
   }
 
   private getRuneDefinition(runeName: string): RuneNameDefinition | null {
-    return RUNE_NAME_MAP[runeName] ?? null;
+    return (
+      RUNE_NAME_MAP[runeName] ?? this.getFallbackPropertyRuneDefinition(runeName)
+    );
+  }
+
+  private getFallbackPropertyRuneDefinition(
+    runeName: string
+  ): RuneNameDefinition | null {
+    const fallbackSlug = this.getFallbackPropertyRuneSlug(runeName);
+    if (!fallbackSlug) {
+      return null;
+    }
+
+    return {
+      targetTypes: ["weapon"],
+      propertySlug: fallbackSlug,
+    };
+  }
+
+  private getFallbackPropertyRuneSlug(runeName: string): string | null {
+    const normalizedSlug = this.normalizeRuneSlug(runeName);
+    if (!normalizedSlug) {
+      return null;
+    }
+
+    return PROPERTY_RUNE_FALLBACKS[normalizedSlug] ?? null;
+  }
+
+  private normalizeRuneSlug(runeName: string): string {
+    const expandedName = runeName.replace(/([a-z])([A-Z])/g, "$1 $2");
+    const trimmed = expandedName.trim().replace(/\s*rune$/i, "");
+    return trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
   }
 
   private isRuneCompatibleWithTarget(runeName: string, targetItem: RuneManagerItem): boolean {
