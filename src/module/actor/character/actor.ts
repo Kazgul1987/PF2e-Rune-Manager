@@ -301,6 +301,26 @@ const ARMOR_PROPERTY_RUNE_FALLBACKS: Record<string, string> = {
   winged: "winged",
 };
 
+const FUNDAMENTAL_RUNE_FALLBACKS: Record<
+  string,
+  {
+    potency?: number;
+    striking?: string;
+    resilient?: string;
+    reinforcing?: string;
+  }
+> = {
+  striking: { striking: "striking" },
+  "greater-striking": { striking: "greaterStriking" },
+  "major-striking": { striking: "majorStriking" },
+  resilient: { resilient: "resilient" },
+  "greater-resilient": { resilient: "greaterResilient" },
+  "major-resilient": { resilient: "majorResilient" },
+  reinforcing: { reinforcing: "reinforcing" },
+  "greater-reinforcing": { reinforcing: "greaterReinforcing" },
+  "major-reinforcing": { reinforcing: "majorReinforcing" },
+};
+
 export class CharacterActor {
   constructor(private readonly actor: RuneManagerActor) {}
 
@@ -356,7 +376,10 @@ export class CharacterActor {
   }
 
   private getEligibleRuneTargets(runeItem: RuneManagerItem): RuneManagerItem[] {
-    const runeDefinition = this.getRuneDefinition(runeItem.name);
+    const runeDefinition = this.getRuneDefinition(
+      runeItem.name,
+      this.getRuneItemSlug(runeItem)
+    );
     if (!runeDefinition) {
       return [];
     }
@@ -365,7 +388,7 @@ export class CharacterActor {
         return false;
       }
 
-      if (!this.isRuneCompatibleWithTarget(runeItem.name, item)) {
+      if (!this.isRuneCompatibleWithTarget(runeItem.name, item, runeItem)) {
         return false;
       }
 
@@ -395,7 +418,7 @@ export class CharacterActor {
       return false;
     }
 
-    if (!this.isRuneCompatibleWithTarget(runeItem.name, targetItem)) {
+    if (!this.isRuneCompatibleWithTarget(runeItem.name, targetItem, runeItem)) {
       ui.notifications?.error("Diese Rune ist mit dem Ziel-Item nicht kompatibel.");
       return false;
     }
@@ -410,7 +433,10 @@ export class CharacterActor {
       return false;
     }
 
-    const fundamentalUpdate = this.getFundamentalRuneUpdate(runeItem.name);
+    const fundamentalUpdate = this.getFundamentalRuneUpdate(
+      runeItem.name,
+      runeItem
+    );
     const propertyRuneSlug = fundamentalUpdate ? null : this.normalizeRuneSlug(runeItem.name);
     if (!propertyRuneSlug && !fundamentalUpdate) {
       ui.notifications?.error("Diese Rune wird aktuell nicht unterstützt.");
@@ -487,9 +513,14 @@ export class CharacterActor {
     return null;
   }
 
-  private getRuneDefinition(runeName: string): RuneNameDefinition | null {
+  private getRuneDefinition(
+    runeName: string,
+    runeSlug?: string | null
+  ): RuneNameDefinition | null {
     return (
-      RUNE_NAME_MAP[runeName] ?? this.getFallbackPropertyRuneDefinition(runeName)
+      RUNE_NAME_MAP[runeName] ??
+      this.getFallbackFundamentalRuneDefinition(runeName, runeSlug) ??
+      this.getFallbackPropertyRuneDefinition(runeName)
     );
   }
 
@@ -520,6 +551,44 @@ export class CharacterActor {
     return null;
   }
 
+  private getFallbackFundamentalRuneDefinition(
+    runeName: string,
+    runeSlug?: string | null
+  ): RuneNameDefinition | null {
+    const normalizedSlug = this.getNormalizedRuneSlug(runeName, runeSlug);
+    if (!normalizedSlug) {
+      return null;
+    }
+
+    const fundamental = FUNDAMENTAL_RUNE_FALLBACKS[normalizedSlug];
+    if (!fundamental) {
+      return null;
+    }
+
+    const targetTypes: RuneTargetType[] = [];
+    if (fundamental.striking) {
+      targetTypes.push("weapon");
+    }
+    if (fundamental.resilient) {
+      targetTypes.push("armor");
+    }
+    if (fundamental.reinforcing) {
+      targetTypes.push("shield");
+    }
+    if (typeof fundamental.potency === "number") {
+      targetTypes.push("weapon", "armor");
+    }
+
+    if (targetTypes.length === 0) {
+      return null;
+    }
+
+    return {
+      targetTypes,
+      fundamental,
+    };
+  }
+
   private getFallbackPropertyRuneSlug(runeName: string): string | null {
     const normalizedSlug = this.normalizeRuneSlug(runeName);
     if (!normalizedSlug) {
@@ -542,8 +611,27 @@ export class CharacterActor {
       .replace(/^-+|-+$/g, "");
   }
 
-  private isRuneCompatibleWithTarget(runeName: string, targetItem: RuneManagerItem): boolean {
-    const runeDefinition = this.getRuneDefinition(runeName);
+  private getRuneItemSlug(runeItem?: RuneManagerItem | null): string | null {
+    const slug = (runeItem?.system as { slug?: unknown } | undefined)?.slug;
+    return typeof slug === "string" ? slug : null;
+  }
+
+  private getNormalizedRuneSlug(
+    runeName: string,
+    runeSlug?: string | null
+  ): string {
+    return this.normalizeRuneSlug(runeSlug ?? runeName);
+  }
+
+  private isRuneCompatibleWithTarget(
+    runeName: string,
+    targetItem: RuneManagerItem,
+    runeItem?: RuneManagerItem | null
+  ): boolean {
+    const runeDefinition = this.getRuneDefinition(
+      runeName,
+      this.getRuneItemSlug(runeItem)
+    );
     if (!runeDefinition) {
       return false;
     }
@@ -561,13 +649,23 @@ export class CharacterActor {
   }
 
   private getFundamentalRuneUpdate(
-    runeName: string
+    runeName: string,
+    runeItem?: RuneManagerItem | null
   ): {
     potency?: number;
     striking?: string;
     resilient?: string;
     reinforcing?: string;
   } | null {
-    return this.getRuneDefinition(runeName)?.fundamental ?? null;
+    const directDefinition = RUNE_NAME_MAP[runeName];
+    if (directDefinition?.fundamental) {
+      return directDefinition.fundamental;
+    }
+
+    const normalizedSlug = this.getNormalizedRuneSlug(
+      runeName,
+      this.getRuneItemSlug(runeItem)
+    );
+    return FUNDAMENTAL_RUNE_FALLBACKS[normalizedSlug] ?? null;
   }
 }
