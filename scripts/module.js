@@ -223,25 +223,45 @@ const getFundamentalRuneData = (runeItem) => {
 const getRuneCategory = (runeItem) => {
   const slug = sluggifyRuneName(runeItem);
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
+  const usage = getRuneUsageValue(runeItem);
 
-  DBG("getRuneCategory", { slug, hasRuneData: !!systemRuneData });
+  const fundamental = getFundamentalRuneData(runeItem);
+  if (Object.keys(fundamental).length) {
+    DBG("getRuneCategory -> fundamental", { slug, usage, fundamental });
+    return "fundamental";
+  }
 
+  DBG("getRuneCategory", { slug, hasRuneData: !!systemRuneData, usage });
+
+  // 1) Wenn das System uns Rune-Daten liefert, klassisch über RUNE_DATA gehen
   if (
     slug &&
     systemRuneData &&
     ((systemRuneData.weapon?.property && slug in systemRuneData.weapon.property) ||
       (systemRuneData.armor?.property && slug in systemRuneData.armor.property))
   ) {
+    DBG("getRuneCategory -> property-via-RUNE_DATA", { slug });
     return "property";
   }
 
+  // 2) Fallback: bekannte Waffen-Property-Runen ohne RUNE_DATA
   if (slug && !systemRuneData && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(slug)) {
-    return "weapon";
+    DBG("getRuneCategory -> weapon-property-fallback", { slug });
+    return "property";
   }
 
-  const fundamental = getFundamentalRuneData(runeItem);
-  if (Object.keys(fundamental).length) return "fundamental";
+  // 3) Allgemeiner Fallback: alles, was "etched-onto-...weapon/armor" ist und
+  //    NICHT fundamental war, behandeln wir als Property-Rune
+  if (
+    usage.startsWith("etched-onto-armor") ||
+    usage.startsWith("etched-onto-a-weapon") ||
+    usage.startsWith("etched-onto-weapon")
+  ) {
+    DBG("getRuneCategory -> property-by-usage", { slug, usage });
+    return "property";
+  }
 
+  DBG("getRuneCategory -> null", { slug, usage });
   return null;
 };
 
