@@ -411,11 +411,22 @@ const applyPropertyRune = async (runeItem, targetItem) => {
 
   // Kein PF2e RUNE_DATA – simpler Fallback nur für bekannte Waffen-Property-Runen
   if (!systemRuneData || !systemPrunePropertyRunes) {
+    const usage = getRuneUsageValue(runeItem);
+
+    // Fallback für Waffen-Property-Runen (wie bisher)
     if (targetItem.type === "weapon" && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(runeSlug)) {
       const updated = Array.from(new Set([...existing, runeSlug]));
       await targetItem.update({ "system.runes.property": updated });
       return true;
     }
+
+    // NEU: Fallback für Armor-Property-Runen, wenn keine RUNE_DATA verfügbar ist
+    if (targetItem.type === "armor" && usage.startsWith("etched-onto-armor")) {
+      const updated = Array.from(new Set([...existing, runeSlug]));
+      await targetItem.update({ "system.runes.property": updated });
+      return true;
+    }
+
     ui.notifications?.warn?.("PF2e rune data unavailable.");
     return false;
   }
