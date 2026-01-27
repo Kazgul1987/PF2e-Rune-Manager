@@ -121,17 +121,46 @@ export class CharacterActor {
       return false;
     }
 
-    const currentRunes = this.getAttachedRunes(targetItem);
-    const updatedRunes = [...currentRunes, runeItem.id];
+    const propertyRuneSlug = this.getPropertyRuneSlug(runeItem.name);
+    const fundamentalUpdate = this.getFundamentalRuneUpdate(runeItem.name);
+    if (!propertyRuneSlug && !fundamentalUpdate) {
+      ui.notifications?.error("Diese Rune wird aktuell nicht unterstützt.");
+      return false;
+    }
 
-    await targetItem.update({ "system.runes.items": updatedRunes });
+    const updateData: Record<string, unknown> = {};
+
+    if (propertyRuneSlug) {
+      const currentRunes = this.getAttachedPropertyRunes(targetItem);
+      const updatedRunes = currentRunes.includes(propertyRuneSlug)
+        ? currentRunes
+        : [...currentRunes, propertyRuneSlug];
+      updateData["system.runes.property"] = updatedRunes;
+    }
+
+    if (fundamentalUpdate) {
+      if (typeof fundamentalUpdate.potency === "number") {
+        updateData["system.runes.potency"] = fundamentalUpdate.potency;
+      }
+      if (fundamentalUpdate.striking) {
+        updateData["system.runes.striking"] = fundamentalUpdate.striking;
+      }
+      if (fundamentalUpdate.resilient) {
+        updateData["system.runes.resilient"] = fundamentalUpdate.resilient;
+      }
+      if (fundamentalUpdate.reinforcing) {
+        updateData["system.runes.reinforcing"] = fundamentalUpdate.reinforcing;
+      }
+    }
+
+    await targetItem.update(updateData);
     ui.notifications?.info(`Rune ${runeItem.name} wurde an ${targetItem.name} angebracht.`);
     return true;
   }
 
-  private getAttachedRunes(targetItem: RuneManagerItem): string[] {
-    const runes = (targetItem.system as { runes?: { items?: string[] } })?.runes
-      ?.items;
+  private getAttachedPropertyRunes(targetItem: RuneManagerItem): string[] {
+    const runes = (targetItem.system as { runes?: { property?: string[] } })?.runes
+      ?.property;
     if (!Array.isArray(runes)) {
       return [];
     }
@@ -171,5 +200,109 @@ export class CharacterActor {
     }
 
     return true;
+  }
+
+  private getPropertyRuneSlug(runeName: string): string | null {
+    const lookup: Record<string, string> = {
+      "Flaming Rune": "flaming",
+      "Frost Rune": "frost",
+      "Shock Rune": "shock",
+      "Thundering Rune": "thundering",
+      "Corrosive Rune": "corrosive",
+      "Ghost Touch Rune": "ghostTouch",
+      "Returning Rune": "returning",
+      "Shifting Rune": "shifting",
+      "Speed Rune": "speed",
+      "Vorpal Rune": "vorpal",
+      "Wounding Rune": "wounding",
+      "Anarchic Rune": "anarchic",
+      "Axiomatic Rune": "axiomatic",
+      "Holy Rune": "holy",
+      "Unholy Rune": "unholy",
+      "Disrupting Rune": "disrupting",
+      "Grievous Rune": "grievous",
+      "Keen Rune": "keen",
+      "Brilliant Rune": "brilliant",
+      "Merciful Rune": "merciful",
+      "Fanged Rune": "fanged",
+      "Anchoring Rune": "anchoring",
+      "Impactful Rune": "impactful",
+      "Dancing Rune": "dancing",
+      "Spell Storing Rune": "spellStoring",
+      "Spell-Storing Rune": "spellStoring",
+      "Flammenrune": "flaming",
+      "Frostrune": "frost",
+      "Schockrune": "shock",
+      "Donnernde Rune": "thundering",
+      "Geisterberührungsrune": "ghostTouch",
+      "Rückkehrrune": "returning",
+      "Verwandlungsrune": "shifting",
+      "Geschwindigkeitsrune": "speed",
+      "Vorpalrune": "vorpal",
+      "Wundrune": "wounding",
+      "Heilige Rune": "holy",
+      "Unheilige Rune": "unholy",
+      "Störende Rune": "disrupting",
+      "Grausame Rune": "grievous",
+      "Scharfe Rune": "keen",
+      "Brillante Rune": "brilliant",
+      "Barmherzige Rune": "merciful",
+      "Fangrune": "fanged",
+    };
+
+    return lookup[runeName] ?? null;
+  }
+
+  private getFundamentalRuneUpdate(
+    runeName: string
+  ): {
+    potency?: number;
+    striking?: string;
+    resilient?: string;
+    reinforcing?: string;
+  } | null {
+    const lookup: Record<
+      string,
+      { potency?: number; striking?: string; resilient?: string; reinforcing?: string }
+    > = {
+      "Weapon Potency Rune (+1)": { potency: 1 },
+      "Weapon Potency Rune (+2)": { potency: 2 },
+      "Weapon Potency Rune (+3)": { potency: 3 },
+      "Armor Potency Rune (+1)": { potency: 1 },
+      "Armor Potency Rune (+2)": { potency: 2 },
+      "Armor Potency Rune (+3)": { potency: 3 },
+      "Potency Rune (+1)": { potency: 1 },
+      "Potency Rune (+2)": { potency: 2 },
+      "Potency Rune (+3)": { potency: 3 },
+      "Waffen-Potenzrune +1": { potency: 1 },
+      "Waffen-Potenzrune +2": { potency: 2 },
+      "Waffen-Potenzrune +3": { potency: 3 },
+      "Rüstungs-Potenzrune +1": { potency: 1 },
+      "Rüstungs-Potenzrune +2": { potency: 2 },
+      "Rüstungs-Potenzrune +3": { potency: 3 },
+      "Potenzrune +1": { potency: 1 },
+      "Potenzrune +2": { potency: 2 },
+      "Potenzrune +3": { potency: 3 },
+      "Striking Rune": { striking: "striking" },
+      "Greater Striking Rune": { striking: "greaterStriking" },
+      "Major Striking Rune": { striking: "majorStriking" },
+      "Resilient Rune": { resilient: "resilient" },
+      "Greater Resilient Rune": { resilient: "greaterResilient" },
+      "Major Resilient Rune": { resilient: "majorResilient" },
+      "Reinforcing Rune": { reinforcing: "reinforcing" },
+      "Greater Reinforcing Rune": { reinforcing: "greaterReinforcing" },
+      "Major Reinforcing Rune": { reinforcing: "majorReinforcing" },
+      "Striking-Rune": { striking: "striking" },
+      "Greater Striking-Rune": { striking: "greaterStriking" },
+      "Major Striking-Rune": { striking: "majorStriking" },
+      "Resiliente Rune": { resilient: "resilient" },
+      "Greater Resiliente Rune": { resilient: "greaterResilient" },
+      "Major Resiliente Rune": { resilient: "majorResilient" },
+      "Verstärkende Rune": { reinforcing: "reinforcing" },
+      "Greater Verstärkende Rune": { reinforcing: "greaterReinforcing" },
+      "Major Verstärkende Rune": { reinforcing: "majorReinforcing" },
+    };
+
+    return lookup[runeName] ?? null;
   }
 }
