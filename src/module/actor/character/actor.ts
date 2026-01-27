@@ -148,32 +148,157 @@ const RUNE_NAME_MAP: Record<string, RuneNameDefinition> = {
   },
 };
 
-const PROPERTY_RUNE_FALLBACKS: Record<string, string> = {
-  flaming: "flaming",
-  frost: "frost",
-  shock: "shock",
-  thundering: "thundering",
+const WEAPON_PROPERTY_RUNE_FALLBACKS: Record<string, string> = {
+  ancestral-echoing: "ancestralEchoing",
+  anchoring: "anchoring",
+  anarchic: "anarchic",
+  ashen: "ashen",
+  astral: "astral",
+  authorized: "authorized",
+  axiomatic: "axiomatic",
+  bane: "bane",
+  bloodbane: "bloodbane",
+  bloodthirsty: "bloodthirsty",
+  bolkas-blessing: "bolkasBlessing",
+  brilliant: "brilliant",
+  called: "called",
+  coating: "coating",
+  conducting: "conducting",
   corrosive: "corrosive",
+  crushing: "crushing",
+  cunning: "cunning",
+  dancing: "dancing",
+  decaying: "decaying",
+  deathdrinking: "deathdrinking",
+  demolishing: "demolishing",
+  disrupting: "disrupting",
+  earthbinding: "earthbinding",
+  energizing: "energizing",
+  extending: "extending",
+  fanged: "fanged",
+  fearsome: "fearsome",
+  flaming: "flaming",
+  flickering: "flickering",
+  flurrying: "flurrying",
+  frost: "frost",
   "ghost-touch": "ghostTouch",
+  giant-killing: "giantKilling",
+  greater-anchoring: "greaterAnchoring",
+  greater-ashen: "greaterAshen",
+  greater-astral: "greaterAstral",
+  greater-bloodbane: "greaterBloodbane",
+  greater-bolkas-blessing: "greaterBolkasBlessing",
+  greater-brilliant: "greaterBrilliant",
+  greater-corrosive: "greaterCorrosive",
+  greater-crushing: "greaterCrushing",
+  greater-decaying: "greaterDecaying",
+  greater-disrupting: "greaterDisrupting",
+  greater-extending: "greaterExtending",
+  greater-fanged: "greaterFanged",
+  greater-fearsome: "greaterFearsome",
+  greater-flaming: "greaterFlaming",
+  greater-frost: "greaterFrost",
+  greater-giant-killing: "greaterGiantKilling",
+  greater-hauling: "greaterHauling",
+  greater-impactful: "greaterImpactful",
+  greater-kolss-oath: "greaterKolssOath",
+  greater-rooting: "greaterRooting",
+  greater-shock: "greaterShock",
+  greater-thundering: "greaterThundering",
+  greater-trudds-strength: "greaterTruddsStrength",
+  grievous: "grievous",
+  hauling: "hauling",
+  holy: "holy",
+  hopeful: "hopeful",
+  hooked: "hooked",
+  impactful: "impactful",
+  impossible: "impossible",
+  keen: "keen",
+  kin-warding: "kinWarding",
+  kolss-oath: "kolssOath",
+  major-fanged: "majorFanged",
+  major-rooting: "majorRooting",
+  merciful: "merciful",
+  nightmare: "nightmare",
+  pacifying: "pacifying",
   returning: "returning",
+  rooting: "rooting",
+  serrating: "serrating",
   shifting: "shifting",
+  shock: "shock",
+  shockwave: "shockwave",
   speed: "speed",
+  "spell-storing": "spellStoring",
+  swarming: "swarming",
+  thundering: "thundering",
+  trudds-strength: "truddsStrength",
+  true-rooting: "trueRooting",
+  underwater: "underwater",
+  unholy: "unholy",
   vorpal: "vorpal",
   wounding: "wounding",
-  anarchic: "anarchic",
-  axiomatic: "axiomatic",
-  holy: "holy",
-  unholy: "unholy",
-  disrupting: "disrupting",
-  grievous: "grievous",
-  keen: "keen",
-  brilliant: "brilliant",
-  merciful: "merciful",
-  fanged: "fanged",
-  anchoring: "anchoring",
-  impactful: "impactful",
-  dancing: "dancing",
-  "spell-storing": "spellStoring",
+};
+
+const ARMOR_PROPERTY_RUNE_FALLBACKS: Record<string, string> = {
+  acid-resistant: "acidResistant",
+  advancing: "advancing",
+  aim-aiding: "aimAiding",
+  antimagic: "antimagic",
+  assisting: "assisting",
+  bitter: "bitter",
+  cold-resistant: "coldResistant",
+  deathless: "deathless",
+  electricity-resistant: "electricityResistant",
+  energy-adaptive: "energyAdaptive",
+  ethereal: "ethereal",
+  fire-resistant: "fireResistant",
+  fortification: "fortification",
+  glamered: "glamered",
+  gliding: "gliding",
+  greater-acid-resistant: "greaterAcidResistant",
+  greater-advancing: "greaterAdvancing",
+  greater-cold-resistant: "greaterColdResistant",
+  greater-dread: "greaterDread",
+  greater-electricity-resistant: "greaterElectricityResistant",
+  greater-fire-resistant: "greaterFireResistant",
+  greater-fortification: "greaterFortification",
+  greater-invisibility: "greaterInvisibility",
+  greater-ready: "greaterReady",
+  greater-shadow: "greaterShadow",
+  greater-slick: "greaterSlick",
+  greater-stanching: "greaterStanching",
+  greater-quenching: "greaterQuenching",
+  greater-swallow-spike: "greaterSwallowSpike",
+  greater-winged: "greaterWinged",
+  immovable: "immovable",
+  implacable: "implacable",
+  invisibility: "invisibility",
+  lesser-dread: "lesserDread",
+  magnetizing: "magnetizing",
+  major-quenching: "majorQuenching",
+  major-shadow: "majorShadow",
+  major-slick: "majorSlick",
+  major-stanching: "majorStanching",
+  major-swallow-spike: "majorSwallowSpike",
+  malleable: "malleable",
+  misleading: "misleading",
+  moderate-dread: "moderateDread",
+  portable: "portable",
+  quenching: "quenching",
+  raiment: "raiment",
+  ready: "ready",
+  rock-braced: "rockBraced",
+  shadow: "shadow",
+  sinister-knight: "sinisterKnight",
+  size-changing: "sizeChanging",
+  slick: "slick",
+  soaring: "soaring",
+  spellwatch: "spellwatch",
+  stanching: "stanching",
+  swallow-spike: "swallowSpike",
+  true-quenching: "trueQuenching",
+  true-stanching: "trueStanching",
+  winged: "winged",
 };
 
 export class CharacterActor {
@@ -371,15 +496,28 @@ export class CharacterActor {
   private getFallbackPropertyRuneDefinition(
     runeName: string
   ): RuneNameDefinition | null {
-    const fallbackSlug = this.getFallbackPropertyRuneSlug(runeName);
-    if (!fallbackSlug) {
+    const normalizedSlug = this.normalizeRuneSlug(runeName);
+    if (!normalizedSlug) {
       return null;
     }
 
-    return {
-      targetTypes: ["weapon"],
-      propertySlug: fallbackSlug,
-    };
+    const weaponSlug = WEAPON_PROPERTY_RUNE_FALLBACKS[normalizedSlug];
+    if (weaponSlug) {
+      return {
+        targetTypes: ["weapon"],
+        propertySlug: weaponSlug,
+      };
+    }
+
+    const armorSlug = ARMOR_PROPERTY_RUNE_FALLBACKS[normalizedSlug];
+    if (armorSlug) {
+      return {
+        targetTypes: ["armor"],
+        propertySlug: armorSlug,
+      };
+    }
+
+    return null;
   }
 
   private getFallbackPropertyRuneSlug(runeName: string): string | null {
@@ -388,7 +526,11 @@ export class CharacterActor {
       return null;
     }
 
-    return PROPERTY_RUNE_FALLBACKS[normalizedSlug] ?? null;
+    return (
+      WEAPON_PROPERTY_RUNE_FALLBACKS[normalizedSlug] ??
+      ARMOR_PROPERTY_RUNE_FALLBACKS[normalizedSlug] ??
+      null
+    );
   }
 
   private normalizeRuneSlug(runeName: string): string {
