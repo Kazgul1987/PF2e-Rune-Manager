@@ -180,41 +180,59 @@ const isRuneCompatible = (runeItem, targetItem) => {
  * keine Strings wie "greaterStriking".
  */
 const getFundamentalRuneData = (runeItem) => {
-  const name = (runeItem?.name ?? "").toString().toLowerCase();
+  const rawName = (runeItem?.name ?? "").toString();
+  const name = rawName.toLowerCase();
   const data = {};
 
-  // +1 / +2 / +3 / +4 aus dem Namen extrahieren
-  const potencyMatch = name.match(/[+＋]\s*(\d+)/);
-  if (potencyMatch) data.potency = Number(potencyMatch[1]);
+  // +1 / +2 / +3 / +4 (Potency) aus dem Namen extrahieren
+  const potencyMatch = rawName.match(/[+＋]\s*(\d+)/);
+  if (potencyMatch) {
+    data.potency = Number(potencyMatch[1]);
+  }
 
-  // Weapon: Striking (1–4)
-  if (name.includes("mythic striking")) data.striking = 4;
-  else if (name.includes("major striking")) data.striking = 3;
-  else if (name.includes("greater striking")) data.striking = 2;
-  else if (name.includes("striking")) data.striking = 1;
+  // Falls vorhanden, den Klammerzusatz auslesen: "Striking (Greater)" -> "greater"
+  const rankMatch = rawName.match(/\(([^)]+)\)/);
+  const rankWord = rankMatch ? rankMatch[1].trim().toLowerCase() : "";
 
-  // Armor: Resilient (1–4)
-  if (name.includes("mythic resilient")) data.resilient = 4;
-  else if (name.includes("major resilient")) data.resilient = 3;
-  else if (name.includes("greater resilient")) data.resilient = 2;
-  else if (name.includes("resilient")) data.resilient = 1;
+  // Helper für Striking/Resilient: 1..4
+  const get4Rank = (kind) => {
+    // Mythic-Variante: kann als "Mythic Striking" ODER "(Mythic)" auftreten
+    if (name.startsWith(`mythic ${kind}`) || rankWord === "mythic") return 4;
+    if (name.startsWith(`major ${kind}`) || rankWord === "major") return 3;
+    if (name.startsWith(`greater ${kind}`) || rankWord === "greater") return 2;
+    // Basis-Rune (ohne Zusätze)
+    return 1;
+  };
 
-  // Shield: Reinforcing (1–6) – "Reinforcing Rune (Minor/…/Supreme)"
-  if (name.includes("reinforcing rune")) {
-    if (name.includes("(supreme)")) data.reinforcing = 6;
-    else if (name.includes("(major)")) data.reinforcing = 5;
-    else if (name.includes("(greater)")) data.reinforcing = 4;
-    else if (name.includes("(moderate)")) data.reinforcing = 3;
-    else if (name.includes("(lesser)")) data.reinforcing = 2;
-    else if (name.includes("(minor)")) data.reinforcing = 1;
-  } else if (name.includes("reinforcing")) {
-    // Fallback falls mal andere Schreibweisen auftauchen
-    if (name.includes("supreme")) data.reinforcing = 6;
-    else if (name.includes("major")) data.reinforcing = 5;
-    else if (name.includes("greater")) data.reinforcing = 4;
-    else if (name.includes("moderate")) data.reinforcing = 3;
-    else if (name.includes("lesser")) data.reinforcing = 2;
-    else data.reinforcing = 1;
+  // Weapon: Striking
+  if (name.includes("striking")) {
+    data.striking = get4Rank("striking");
+  }
+
+  // Armor: Resilient
+  if (name.includes("resilient")) {
+    data.resilient = get4Rank("resilient");
+  }
+
+  // Shield: Reinforcing (1..6)
+  if (name.includes("reinforcing")) {
+    // Default: Minor = 1
+    let rank = 1;
+
+    // Bevorzugt nach Klammerzusatz gehen, falls vorhanden
+    const reinforcingRankWord = rankWord || "";
+
+    const w = reinforcingRankWord || "";
+    const lw = w.toLowerCase();
+
+    if (lw === "supreme" || name.includes("reinforcing rune (supreme)")) rank = 6;
+    else if (lw === "major" || name.includes("reinforcing rune (major)")) rank = 5;
+    else if (lw === "greater" || name.includes("reinforcing rune (greater)")) rank = 4;
+    else if (lw === "moderate" || name.includes("reinforcing rune (moderate)")) rank = 3;
+    else if (lw === "lesser" || name.includes("reinforcing rune (lesser)")) rank = 2;
+    else if (lw === "minor" || name.includes("reinforcing rune (minor)")) rank = 1;
+
+    data.reinforcing = rank;
   }
 
   return data;
