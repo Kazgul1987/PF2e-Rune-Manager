@@ -16,6 +16,138 @@ type RuneManagerActor = {
   };
 };
 
+type RuneTargetType = "weapon" | "armor" | "shield";
+
+type RuneNameDefinition = {
+  targetTypes: RuneTargetType[];
+  propertySlug?: string;
+  fundamental?: {
+    potency?: number;
+    striking?: string;
+    resilient?: string;
+    reinforcing?: string;
+  };
+};
+
+const RUNE_NAME_MAP: Record<string, RuneNameDefinition> = {
+  "Flaming Rune": { targetTypes: ["weapon"], propertySlug: "flaming" },
+  "Frost Rune": { targetTypes: ["weapon"], propertySlug: "frost" },
+  "Shock Rune": { targetTypes: ["weapon"], propertySlug: "shock" },
+  "Thundering Rune": { targetTypes: ["weapon"], propertySlug: "thundering" },
+  "Corrosive Rune": { targetTypes: ["weapon"], propertySlug: "corrosive" },
+  "Ghost Touch Rune": { targetTypes: ["weapon"], propertySlug: "ghostTouch" },
+  "Returning Rune": { targetTypes: ["weapon"], propertySlug: "returning" },
+  "Shifting Rune": { targetTypes: ["weapon"], propertySlug: "shifting" },
+  "Speed Rune": { targetTypes: ["weapon"], propertySlug: "speed" },
+  "Vorpal Rune": { targetTypes: ["weapon"], propertySlug: "vorpal" },
+  "Wounding Rune": { targetTypes: ["weapon"], propertySlug: "wounding" },
+  "Anarchic Rune": { targetTypes: ["weapon"], propertySlug: "anarchic" },
+  "Axiomatic Rune": { targetTypes: ["weapon"], propertySlug: "axiomatic" },
+  "Holy Rune": { targetTypes: ["weapon"], propertySlug: "holy" },
+  "Unholy Rune": { targetTypes: ["weapon"], propertySlug: "unholy" },
+  "Disrupting Rune": { targetTypes: ["weapon"], propertySlug: "disrupting" },
+  "Grievous Rune": { targetTypes: ["weapon"], propertySlug: "grievous" },
+  "Keen Rune": { targetTypes: ["weapon"], propertySlug: "keen" },
+  "Brilliant Rune": { targetTypes: ["weapon"], propertySlug: "brilliant" },
+  "Merciful Rune": { targetTypes: ["weapon"], propertySlug: "merciful" },
+  "Fanged Rune": { targetTypes: ["weapon"], propertySlug: "fanged" },
+  "Anchoring Rune": { targetTypes: ["weapon"], propertySlug: "anchoring" },
+  "Impactful Rune": { targetTypes: ["weapon"], propertySlug: "impactful" },
+  "Dancing Rune": { targetTypes: ["weapon"], propertySlug: "dancing" },
+  "Spell Storing Rune": { targetTypes: ["weapon"], propertySlug: "spellStoring" },
+  "Spell-Storing Rune": { targetTypes: ["weapon"], propertySlug: "spellStoring" },
+  "Flammenrune": { targetTypes: ["weapon"], propertySlug: "flaming" },
+  "Frostrune": { targetTypes: ["weapon"], propertySlug: "frost" },
+  "Schockrune": { targetTypes: ["weapon"], propertySlug: "shock" },
+  "Donnernde Rune": { targetTypes: ["weapon"], propertySlug: "thundering" },
+  "Geisterberührungsrune": { targetTypes: ["weapon"], propertySlug: "ghostTouch" },
+  "Rückkehrrune": { targetTypes: ["weapon"], propertySlug: "returning" },
+  "Verwandlungsrune": { targetTypes: ["weapon"], propertySlug: "shifting" },
+  "Geschwindigkeitsrune": { targetTypes: ["weapon"], propertySlug: "speed" },
+  "Vorpalrune": { targetTypes: ["weapon"], propertySlug: "vorpal" },
+  "Wundrune": { targetTypes: ["weapon"], propertySlug: "wounding" },
+  "Heilige Rune": { targetTypes: ["weapon"], propertySlug: "holy" },
+  "Unheilige Rune": { targetTypes: ["weapon"], propertySlug: "unholy" },
+  "Störende Rune": { targetTypes: ["weapon"], propertySlug: "disrupting" },
+  "Grausame Rune": { targetTypes: ["weapon"], propertySlug: "grievous" },
+  "Scharfe Rune": { targetTypes: ["weapon"], propertySlug: "keen" },
+  "Brillante Rune": { targetTypes: ["weapon"], propertySlug: "brilliant" },
+  "Barmherzige Rune": { targetTypes: ["weapon"], propertySlug: "merciful" },
+  "Fangrune": { targetTypes: ["weapon"], propertySlug: "fanged" },
+  "Weapon Potency Rune (+1)": { targetTypes: ["weapon"], fundamental: { potency: 1 } },
+  "Weapon Potency Rune (+2)": { targetTypes: ["weapon"], fundamental: { potency: 2 } },
+  "Weapon Potency Rune (+3)": { targetTypes: ["weapon"], fundamental: { potency: 3 } },
+  "Armor Potency Rune (+1)": { targetTypes: ["armor"], fundamental: { potency: 1 } },
+  "Armor Potency Rune (+2)": { targetTypes: ["armor"], fundamental: { potency: 2 } },
+  "Armor Potency Rune (+3)": { targetTypes: ["armor"], fundamental: { potency: 3 } },
+  "Potency Rune (+1)": { targetTypes: ["weapon", "armor"], fundamental: { potency: 1 } },
+  "Potency Rune (+2)": { targetTypes: ["weapon", "armor"], fundamental: { potency: 2 } },
+  "Potency Rune (+3)": { targetTypes: ["weapon", "armor"], fundamental: { potency: 3 } },
+  "Waffen-Potenzrune +1": { targetTypes: ["weapon"], fundamental: { potency: 1 } },
+  "Waffen-Potenzrune +2": { targetTypes: ["weapon"], fundamental: { potency: 2 } },
+  "Waffen-Potenzrune +3": { targetTypes: ["weapon"], fundamental: { potency: 3 } },
+  "Rüstungs-Potenzrune +1": { targetTypes: ["armor"], fundamental: { potency: 1 } },
+  "Rüstungs-Potenzrune +2": { targetTypes: ["armor"], fundamental: { potency: 2 } },
+  "Rüstungs-Potenzrune +3": { targetTypes: ["armor"], fundamental: { potency: 3 } },
+  "Potenzrune +1": { targetTypes: ["weapon", "armor"], fundamental: { potency: 1 } },
+  "Potenzrune +2": { targetTypes: ["weapon", "armor"], fundamental: { potency: 2 } },
+  "Potenzrune +3": { targetTypes: ["weapon", "armor"], fundamental: { potency: 3 } },
+  "Striking Rune": { targetTypes: ["weapon"], fundamental: { striking: "striking" } },
+  "Greater Striking Rune": {
+    targetTypes: ["weapon"],
+    fundamental: { striking: "greaterStriking" },
+  },
+  "Major Striking Rune": {
+    targetTypes: ["weapon"],
+    fundamental: { striking: "majorStriking" },
+  },
+  "Resilient Rune": { targetTypes: ["armor"], fundamental: { resilient: "resilient" } },
+  "Greater Resilient Rune": {
+    targetTypes: ["armor"],
+    fundamental: { resilient: "greaterResilient" },
+  },
+  "Major Resilient Rune": {
+    targetTypes: ["armor"],
+    fundamental: { resilient: "majorResilient" },
+  },
+  "Reinforcing Rune": { targetTypes: ["shield"], fundamental: { reinforcing: "reinforcing" } },
+  "Greater Reinforcing Rune": {
+    targetTypes: ["shield"],
+    fundamental: { reinforcing: "greaterReinforcing" },
+  },
+  "Major Reinforcing Rune": {
+    targetTypes: ["shield"],
+    fundamental: { reinforcing: "majorReinforcing" },
+  },
+  "Striking-Rune": { targetTypes: ["weapon"], fundamental: { striking: "striking" } },
+  "Greater Striking-Rune": {
+    targetTypes: ["weapon"],
+    fundamental: { striking: "greaterStriking" },
+  },
+  "Major Striking-Rune": {
+    targetTypes: ["weapon"],
+    fundamental: { striking: "majorStriking" },
+  },
+  "Resiliente Rune": { targetTypes: ["armor"], fundamental: { resilient: "resilient" } },
+  "Greater Resiliente Rune": {
+    targetTypes: ["armor"],
+    fundamental: { resilient: "greaterResilient" },
+  },
+  "Major Resiliente Rune": {
+    targetTypes: ["armor"],
+    fundamental: { resilient: "majorResilient" },
+  },
+  "Verstärkende Rune": { targetTypes: ["shield"], fundamental: { reinforcing: "reinforcing" } },
+  "Greater Verstärkende Rune": {
+    targetTypes: ["shield"],
+    fundamental: { reinforcing: "greaterReinforcing" },
+  },
+  "Major Verstärkende Rune": {
+    targetTypes: ["shield"],
+    fundamental: { reinforcing: "majorReinforcing" },
+  },
+};
+
 export class CharacterActor {
   constructor(private readonly actor: RuneManagerActor) {}
 
@@ -71,13 +203,16 @@ export class CharacterActor {
   }
 
   private getEligibleRuneTargets(runeItem: RuneManagerItem): RuneManagerItem[] {
-    const runeCategory = this.getRuneCategory(runeItem);
+    const runeDefinition = this.getRuneDefinition(runeItem.name);
+    if (!runeDefinition) {
+      return [];
+    }
     return this.actor.items.filter((item) => {
       if (!this.isEquipmentItem(item)) {
         return false;
       }
 
-      if (runeCategory && !this.isRuneCompatibleWithTarget(runeCategory, item)) {
+      if (!this.isRuneCompatibleWithTarget(runeItem.name, item)) {
         return false;
       }
 
@@ -101,12 +236,13 @@ export class CharacterActor {
     targetItem: RuneManagerItem
   ): Promise<boolean> {
     if (!this.isEquipmentItem(targetItem)) {
-      ui.notifications?.error("Runen können nur an Waffen oder Rüstungen angebracht werden.");
+      ui.notifications?.error(
+        "Runen können nur an Waffen, Rüstungen oder Schilden angebracht werden."
+      );
       return false;
     }
 
-    const runeCategory = this.getRuneCategory(runeItem);
-    if (runeCategory && !this.isRuneCompatibleWithTarget(runeCategory, targetItem)) {
+    if (!this.isRuneCompatibleWithTarget(runeItem.name, targetItem)) {
       ui.notifications?.error("Diese Rune ist mit dem Ziel-Item nicht kompatibel.");
       return false;
     }
@@ -177,80 +313,47 @@ export class CharacterActor {
     return true;
   }
 
-  private getRuneCategory(runeItem: RuneManagerItem): string | null {
-    const systemData = runeItem.system as {
-      runeType?: string;
-      category?: string;
-    };
-
-    return systemData?.runeType ?? systemData?.category ?? null;
-  }
-
   private isEquipmentItem(item: RuneManagerItem): boolean {
-    return item.type === "weapon" || item.type === "armor";
+    return this.getItemRuneTargetType(item) !== null;
   }
 
-  private isRuneCompatibleWithTarget(runeCategory: string, targetItem: RuneManagerItem): boolean {
-    if (runeCategory === "weapon") {
-      return targetItem.type === "weapon";
+  private getItemRuneTargetType(item: RuneManagerItem): RuneTargetType | null {
+    if (item.type === "weapon") {
+      return "weapon";
     }
 
-    if (runeCategory === "armor") {
-      return targetItem.type === "armor";
+    if (item.type === "shield") {
+      return "shield";
     }
 
-    return true;
+    if (item.type === "armor") {
+      const category = (item.system as { category?: string })?.category;
+      return category === "shield" ? "shield" : "armor";
+    }
+
+    return null;
+  }
+
+  private getRuneDefinition(runeName: string): RuneNameDefinition | null {
+    return RUNE_NAME_MAP[runeName] ?? null;
+  }
+
+  private isRuneCompatibleWithTarget(runeName: string, targetItem: RuneManagerItem): boolean {
+    const runeDefinition = this.getRuneDefinition(runeName);
+    if (!runeDefinition) {
+      return false;
+    }
+
+    const targetType = this.getItemRuneTargetType(targetItem);
+    if (!targetType) {
+      return false;
+    }
+
+    return runeDefinition.targetTypes.includes(targetType);
   }
 
   private getPropertyRuneSlug(runeName: string): string | null {
-    const lookup: Record<string, string> = {
-      "Flaming Rune": "flaming",
-      "Frost Rune": "frost",
-      "Shock Rune": "shock",
-      "Thundering Rune": "thundering",
-      "Corrosive Rune": "corrosive",
-      "Ghost Touch Rune": "ghostTouch",
-      "Returning Rune": "returning",
-      "Shifting Rune": "shifting",
-      "Speed Rune": "speed",
-      "Vorpal Rune": "vorpal",
-      "Wounding Rune": "wounding",
-      "Anarchic Rune": "anarchic",
-      "Axiomatic Rune": "axiomatic",
-      "Holy Rune": "holy",
-      "Unholy Rune": "unholy",
-      "Disrupting Rune": "disrupting",
-      "Grievous Rune": "grievous",
-      "Keen Rune": "keen",
-      "Brilliant Rune": "brilliant",
-      "Merciful Rune": "merciful",
-      "Fanged Rune": "fanged",
-      "Anchoring Rune": "anchoring",
-      "Impactful Rune": "impactful",
-      "Dancing Rune": "dancing",
-      "Spell Storing Rune": "spellStoring",
-      "Spell-Storing Rune": "spellStoring",
-      "Flammenrune": "flaming",
-      "Frostrune": "frost",
-      "Schockrune": "shock",
-      "Donnernde Rune": "thundering",
-      "Geisterberührungsrune": "ghostTouch",
-      "Rückkehrrune": "returning",
-      "Verwandlungsrune": "shifting",
-      "Geschwindigkeitsrune": "speed",
-      "Vorpalrune": "vorpal",
-      "Wundrune": "wounding",
-      "Heilige Rune": "holy",
-      "Unheilige Rune": "unholy",
-      "Störende Rune": "disrupting",
-      "Grausame Rune": "grievous",
-      "Scharfe Rune": "keen",
-      "Brillante Rune": "brilliant",
-      "Barmherzige Rune": "merciful",
-      "Fangrune": "fanged",
-    };
-
-    return lookup[runeName] ?? null;
+    return this.getRuneDefinition(runeName)?.propertySlug ?? null;
   }
 
   private getFundamentalRuneUpdate(
@@ -261,48 +364,6 @@ export class CharacterActor {
     resilient?: string;
     reinforcing?: string;
   } | null {
-    const lookup: Record<
-      string,
-      { potency?: number; striking?: string; resilient?: string; reinforcing?: string }
-    > = {
-      "Weapon Potency Rune (+1)": { potency: 1 },
-      "Weapon Potency Rune (+2)": { potency: 2 },
-      "Weapon Potency Rune (+3)": { potency: 3 },
-      "Armor Potency Rune (+1)": { potency: 1 },
-      "Armor Potency Rune (+2)": { potency: 2 },
-      "Armor Potency Rune (+3)": { potency: 3 },
-      "Potency Rune (+1)": { potency: 1 },
-      "Potency Rune (+2)": { potency: 2 },
-      "Potency Rune (+3)": { potency: 3 },
-      "Waffen-Potenzrune +1": { potency: 1 },
-      "Waffen-Potenzrune +2": { potency: 2 },
-      "Waffen-Potenzrune +3": { potency: 3 },
-      "Rüstungs-Potenzrune +1": { potency: 1 },
-      "Rüstungs-Potenzrune +2": { potency: 2 },
-      "Rüstungs-Potenzrune +3": { potency: 3 },
-      "Potenzrune +1": { potency: 1 },
-      "Potenzrune +2": { potency: 2 },
-      "Potenzrune +3": { potency: 3 },
-      "Striking Rune": { striking: "striking" },
-      "Greater Striking Rune": { striking: "greaterStriking" },
-      "Major Striking Rune": { striking: "majorStriking" },
-      "Resilient Rune": { resilient: "resilient" },
-      "Greater Resilient Rune": { resilient: "greaterResilient" },
-      "Major Resilient Rune": { resilient: "majorResilient" },
-      "Reinforcing Rune": { reinforcing: "reinforcing" },
-      "Greater Reinforcing Rune": { reinforcing: "greaterReinforcing" },
-      "Major Reinforcing Rune": { reinforcing: "majorReinforcing" },
-      "Striking-Rune": { striking: "striking" },
-      "Greater Striking-Rune": { striking: "greaterStriking" },
-      "Major Striking-Rune": { striking: "majorStriking" },
-      "Resiliente Rune": { resilient: "resilient" },
-      "Greater Resiliente Rune": { resilient: "greaterResilient" },
-      "Major Resiliente Rune": { resilient: "majorResilient" },
-      "Verstärkende Rune": { reinforcing: "reinforcing" },
-      "Greater Verstärkende Rune": { reinforcing: "greaterReinforcing" },
-      "Major Verstärkende Rune": { reinforcing: "majorReinforcing" },
-    };
-
-    return lookup[runeName] ?? null;
+    return this.getRuneDefinition(runeName)?.fundamental ?? null;
   }
 }
