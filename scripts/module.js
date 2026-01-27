@@ -61,7 +61,9 @@ const sluggifyRuneName = (runeItem) => {
 };
 
 const getRuneUsageValue = (runeItem) =>
-  (runeItem?.system?.usage?.value ?? runeItem?.system?.usage ?? "").toString().toLowerCase();
+  (runeItem?.system?.usage?.value ?? runeItem?.system?.usage ?? "")
+    .toString()
+    .toLowerCase();
 
 const getRuneTraits = (runeItem) =>
   (runeItem?.system?.traits?.value ?? runeItem?.system?.traits ?? [])
@@ -156,7 +158,7 @@ const isRuneCompatible = (runeItem, targetItem) => {
     return false;
   }
 
-  // Property slots prüfen
+  // Property slots prüfen (nur um volle Items früh auszufiltern)
   const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
   if (systemRuneData) {
     const runeSlug = sluggifyRuneName(runeItem);
@@ -172,26 +174,48 @@ const isRuneCompatible = (runeItem, targetItem) => {
   return true;
 };
 
+/**
+ * Fundamental-Runen (Potency, Striking, Resilient, Reinforcing)
+ * Wichtig: system.runes.* nutzt im aktuellen PF2e-System NUMERISCHE Werte,
+ * keine Strings wie "greaterStriking".
+ */
 const getFundamentalRuneData = (runeItem) => {
   const name = (runeItem?.name ?? "").toString().toLowerCase();
   const data = {};
 
+  // +1 / +2 / +3 / +4 aus dem Namen extrahieren
   const potencyMatch = name.match(/[+＋]\s*(\d+)/);
   if (potencyMatch) data.potency = Number(potencyMatch[1]);
 
-  if (name.includes("mythic striking")) data.striking = "mythicStriking";
-  else if (name.includes("major striking")) data.striking = "majorStriking";
-  else if (name.includes("greater striking")) data.striking = "greaterStriking";
-  else if (name.includes("striking")) data.striking = "striking";
+  // Weapon: Striking (1–4)
+  if (name.includes("mythic striking")) data.striking = 4;
+  else if (name.includes("major striking")) data.striking = 3;
+  else if (name.includes("greater striking")) data.striking = 2;
+  else if (name.includes("striking")) data.striking = 1;
 
-  if (name.includes("mythic resilient")) data.resilient = "mythicResilient";
-  else if (name.includes("major resilient")) data.resilient = "majorResilient";
-  else if (name.includes("greater resilient")) data.resilient = "greaterResilient";
-  else if (name.includes("resilient")) data.resilient = "resilient";
+  // Armor: Resilient (1–4)
+  if (name.includes("mythic resilient")) data.resilient = 4;
+  else if (name.includes("major resilient")) data.resilient = 3;
+  else if (name.includes("greater resilient")) data.resilient = 2;
+  else if (name.includes("resilient")) data.resilient = 1;
 
-  if (name.includes("major reinforcing")) data.reinforcing = "majorReinforcing";
-  else if (name.includes("greater reinforcing")) data.reinforcing = "greaterReinforcing";
-  else if (name.includes("reinforcing")) data.reinforcing = "reinforcing";
+  // Shield: Reinforcing (1–6) – "Reinforcing Rune (Minor/…/Supreme)"
+  if (name.includes("reinforcing rune")) {
+    if (name.includes("(supreme)")) data.reinforcing = 6;
+    else if (name.includes("(major)")) data.reinforcing = 5;
+    else if (name.includes("(greater)")) data.reinforcing = 4;
+    else if (name.includes("(moderate)")) data.reinforcing = 3;
+    else if (name.includes("(lesser)")) data.reinforcing = 2;
+    else if (name.includes("(minor)")) data.reinforcing = 1;
+  } else if (name.includes("reinforcing")) {
+    // Fallback falls mal andere Schreibweisen auftauchen
+    if (name.includes("supreme")) data.reinforcing = 6;
+    else if (name.includes("major")) data.reinforcing = 5;
+    else if (name.includes("greater")) data.reinforcing = 4;
+    else if (name.includes("moderate")) data.reinforcing = 3;
+    else if (name.includes("lesser")) data.reinforcing = 2;
+    else data.reinforcing = 1;
+  }
 
   return data;
 };
@@ -235,7 +259,8 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
     if (runeData.resilient != null) updates["system.runes.resilient"] = runeData.resilient;
   }
   if (targetItem.type === "shield") {
-    if (runeData.reinforcing != null) updates["system.runes.reinforcing"] = runeData.reinforcing;
+    if (runeData.reinforcing != null)
+      updates["system.runes.reinforcing"] = runeData.reinforcing;
   }
 
   if (Object.keys(updates).length) {
@@ -243,6 +268,92 @@ const applyFundamentalRune = async (runeItem, targetItem) => {
     return true;
   }
   return false;
+};
+
+/** Hilfsfunktion: "Advancing (Greater)" -> "greaterAdvancing", "Acid-Resistant" -> "acidResistant" usw. */
+const toCamelCaseKey = (value) => {
+  if (!value) return "";
+  // Diakritika raus, Sonderzeichen in Leerzeichen umwandeln
+  let sanitized = value
+    .toString()
+    .normalize?.("NFKD")
+    .replace(/[^A-Za-z0-9\s\-]/g, " ");
+  const tokens = sanitized
+    .split(/[\s\-]+/)
+    .map((t) => t.toLowerCase())
+    .filter(Boolean);
+  if (!tokens.length) return "";
+  const [first, ...rest] = tokens;
+  return first + rest.map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join("");
+};
+
+const getPropertyRuneTypeKeyFromName = (name) => {
+  if (!name) return "";
+  const trimmed = name.toString().trim();
+  const match = trimmed.match(/^(?<base>.+?)\s*\((?<rank>.+?)\)\s*$/);
+  if (match?.groups) {
+    const base = match.groups.base.trim();
+    const rank = match.groups.rank.trim().toLowerCase();
+    const baseKey = toCamelCaseKey(base);
+    if (!baseKey) return "";
+
+    const rankMap = {
+      lesser: "lesser",
+      greater: "greater",
+      major: "major",
+      moderate: "moderate",
+      true: "true",
+      improved: "improved",
+      supreme: "supreme",
+    };
+    const prefix = rankMap[rank] ?? rank;
+    return prefix + baseKey.charAt(0).toUpperCase() + baseKey.slice(1);
+  }
+
+  return toCamelCaseKey(trimmed);
+};
+
+/**
+ * Liefert für eine Property-Rune:
+ *   kind: "weapon" | "armor" | null
+ *   key:  den actual System-Key (z.B. "greaterAdvancing") oder null
+ */
+const resolvePropertyRuneKey = (runeItem, targetItemType, systemRuneData) => {
+  const slug = sluggifyRuneName(runeItem);
+  const name = runeItem?.name ?? "";
+  const nameKey = getPropertyRuneTypeKeyFromName(name);
+
+  const weaponProps = systemRuneData?.weapon?.property ?? {};
+  const armorProps = systemRuneData?.armor?.property ?? {};
+
+  const candidates = new Set([slug, nameKey].filter(Boolean));
+
+  const groups = [];
+  if (targetItemType === "weapon") groups.push({ kind: "weapon", data: weaponProps });
+  if (targetItemType === "armor") groups.push({ kind: "armor", data: armorProps });
+
+  // Falls das Ziel nicht klar ist (sollte hier nicht vorkommen), trotzdem beides versuchen
+  if (!groups.length) {
+    groups.push({ kind: "weapon", data: weaponProps });
+    groups.push({ kind: "armor", data: armorProps });
+  }
+
+  for (const { kind, data } of groups) {
+    for (const [key, value] of Object.entries(data)) {
+      if (!value) continue;
+      const dataSlug = (value.slug ?? "").toString();
+      if (candidates.has(key) || candidates.has(dataSlug)) {
+        return { kind, key };
+      }
+    }
+  }
+
+  // Fallback: bekannte Weapon-Property-Runen über Slug
+  if (targetItemType === "weapon" && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(slug)) {
+    return { kind: "weapon", key: slug };
+  }
+
+  return { kind: null, key: null };
 };
 
 const applyPropertyRune = async (runeItem, targetItem) => {
@@ -260,6 +371,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     return false;
   }
 
+  // Kein PF2e RUNE_DATA – simpler Fallback nur für bekannte Waffen-Property-Runen
   if (!systemRuneData || !systemPrunePropertyRunes) {
     if (targetItem.type === "weapon" && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(runeSlug)) {
       const updated = Array.from(new Set([...existing, runeSlug]));
@@ -270,29 +382,34 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     return false;
   }
 
-  if (targetItem.type === "weapon") {
-    const weaponPropertyData = systemRuneData.weapon?.property;
-    if (!weaponPropertyData || !(runeSlug in weaponPropertyData)) {
-      ui.notifications?.warn?.("This is not a weapon property rune.");
-      return false;
-    }
-    const updated = systemPrunePropertyRunes([...existing, runeSlug], weaponPropertyData);
+  const { kind, key } = resolvePropertyRuneKey(runeItem, targetItem.type, systemRuneData);
+
+  if (!kind || !key) {
+    ui.notifications?.warn?.(
+      targetItem.type === "weapon"
+        ? "This is not a weapon property rune."
+        : targetItem.type === "armor"
+        ? "This is not an armor property rune."
+        : "Property runes on this item type are not supported."
+    );
+    return false;
+  }
+
+  if (kind === "weapon" && targetItem.type === "weapon") {
+    const weaponPropertyData = systemRuneData.weapon?.property ?? {};
+    const updated = systemPrunePropertyRunes([...existing, key], weaponPropertyData);
     await targetItem.update({ "system.runes.property": updated });
     return true;
   }
 
-  if (targetItem.type === "armor") {
-    const armorPropertyData = systemRuneData.armor?.property;
-    if (!armorPropertyData || !(runeSlug in armorPropertyData)) {
-      ui.notifications?.warn?.("This is not an armor property rune.");
-      return false;
-    }
-    const updated = systemPrunePropertyRunes([...existing, runeSlug], armorPropertyData);
+  if (kind === "armor" && targetItem.type === "armor") {
+    const armorPropertyData = systemRuneData.armor?.property ?? {};
+    const updated = systemPrunePropertyRunes([...existing, key], armorPropertyData);
     await targetItem.update({ "system.runes.property": updated });
     return true;
   }
 
-  ui.notifications?.warn?.("Property runes on shields are not supported.");
+  ui.notifications?.warn?.("Property runes on this item type are not supported.");
   return false;
 };
 
@@ -315,7 +432,10 @@ const handleAttachRunesClick = (event) => {
   const usageValue = usage.toString().toLowerCase();
   const rawTraits = runeItem?.system?.traits;
   const traits = Array.isArray(rawTraits?.value) ? rawTraits.value : [];
-  const isRune = usageValue.startsWith("etched-onto") || traits.includes("property") || traits.includes("fundamental");
+  const isRune =
+    usageValue.startsWith("etched-onto") ||
+    traits.includes("property") ||
+    traits.includes("fundamental");
 
   if (!runeItem || !isRune) return;
 
@@ -330,7 +450,9 @@ const handleAttachRunesClick = (event) => {
       <div class="form-group">
         <label>Select target</label>
         <select name="rune-target">
-          ${options.map((item) => `<option value="${item.id}">${item.name}</option>`).join("")}
+          ${options
+            .map((item) => `<option value="${item.id}">${item.name}</option>`)
+            .join("")}
         </select>
       </div>
       <div class="form-group">
@@ -352,7 +474,9 @@ const handleAttachRunesClick = (event) => {
         label: "Confirm",
         callback: (dialogHtml) => {
           const targetId = dialogHtml.find("select[name='rune-target']").val();
-          const consumeRune = dialogHtml.find("input[name='consume-rune']").prop("checked");
+          const consumeRune = dialogHtml
+            .find("input[name='consume-rune']")
+            .prop("checked");
           if (!targetId) return;
 
           Hooks.callAll("pf2eRuneManagerAttachRune", {
@@ -378,7 +502,10 @@ const renderActorSheetHook = (app, html) => {
     const usageValue = usage.toString().toLowerCase();
     const rawTraits = item?.system?.traits;
     const traits = Array.isArray(rawTraits?.value) ? rawTraits.value : [];
-    const isRune = usageValue.startsWith("etched-onto") || traits.includes("property") || traits.includes("fundamental");
+    const isRune =
+      usageValue.startsWith("etched-onto") ||
+      traits.includes("property") ||
+      traits.includes("fundamental");
     if (!isRune) return;
 
     const controls = $(row).find(".item-controls");
