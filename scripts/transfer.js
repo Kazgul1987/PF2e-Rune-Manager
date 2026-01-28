@@ -38,7 +38,7 @@ const getDCForRuneLevel = (level) => {
 };
 
 // --- Fundamental-Runen-Bewertungen (Level & Preis in GP) ---
-// Werte 1:1 aus dem PF2e-System (src/module/item/physical/runes.ts)
+// Direkt aus dem PF2e-System (FUNDAMENTAL_*_RUNE_DATA)
 const FUNDAMENTAL_RUNE_VALUATION = {
   weapon: {
     potency: {
@@ -48,10 +48,10 @@ const FUNDAMENTAL_RUNE_VALUATION = {
       4: { level: 20, price: 70000 },
     },
     striking: {
-      1: { level: 4, price: 65 },       // Striking
-      2: { level: 12, price: 1065 },    // Greater Striking
-      3: { level: 19, price: 31065 },   // Major Striking
-      4: { level: 20, price: 70000 },   // Mythic Striking
+      1: { level: 4, price: 65 }, // Striking
+      2: { level: 12, price: 1065 }, // Greater Striking
+      3: { level: 19, price: 31065 }, // Major Striking
+      4: { level: 20, price: 70000 }, // Mythic Striking
     },
   },
   armor: {
@@ -62,21 +62,82 @@ const FUNDAMENTAL_RUNE_VALUATION = {
       4: { level: 20, price: 70000 }, // Mythic Armor Potency
     },
     resilient: {
-      1: { level: 8, price: 340 },      // Resilient
-      2: { level: 14, price: 3440 },    // Greater Resilient
-      3: { level: 20, price: 49440 },   // Major Resilient
-      4: { level: 20, price: 70000 },   // Mythic Resilient
+      1: { level: 8, price: 340 }, // Resilient
+      2: { level: 14, price: 3440 }, // Greater Resilient
+      3: { level: 20, price: 49440 }, // Major Resilient
+      4: { level: 20, price: 70000 }, // Mythic Resilient
     },
   },
   shield: {
     reinforcing: {
-      1: { level: 4, price: 75 },      // Minor
-      2: { level: 7, price: 300 },     // Lesser
-      3: { level: 10, price: 900 },    // Moderate
-      4: { level: 13, price: 2500 },   // Greater
-      5: { level: 16, price: 8000 },   // Major
-      6: { level: 19, price: 32000 },  // Supreme
+      1: { level: 4, price: 75 }, // Minor
+      2: { level: 7, price: 300 }, // Lesser
+      3: { level: 10, price: 900 }, // Moderate
+      4: { level: 13, price: 2500 }, // Greater
+      5: { level: 16, price: 8000 }, // Major
+      6: { level: 19, price: 32000 }, // Supreme
     },
+  },
+};
+
+/**
+ * Fallback-Preise für häufige Property-Runen, falls getRuneValuationData
+ * in deiner laufenden PF2e-Version nicht erreichbar ist.
+ *
+ * Du kannst diese Tabelle jederzeit erweitern:
+ *  - Schlüssel = slug der Rune (so wie in system.runes.property gespeichert)
+ *  - level = Item Level
+ *  - price = voller Runenpreis in GP
+ */
+const FALLBACK_PROPERTY_RUNE_VALUATION = {
+  armor: {
+    slick: { level: 5, price: 45 },
+    greaterSlick: { level: 8, price: 450 },
+    majorSlick: { level: 16, price: 9000 },
+    trueSlick: { level: 19, price: 35000 },
+
+    glamered: { level: 5, price: 140 },
+    fortification: { level: 12, price: 2000 },
+    greaterFortification: { level: 19, price: 24000 },
+    trueFortification: { level: 20, price: 70000 },
+
+    energyAdaptive: { level: 13, price: 2600 },
+    antimagic: { level: 15, price: 6500 },
+    winged: { level: 13, price: 2500 },
+    greaterWinged: { level: 19, price: 35000 },
+
+    // Hier kannst du bei Bedarf weitere Armor-Property-Runen ergänzen
+  },
+  weapon: {
+    flaming: { level: 8, price: 500 },
+    greaterFlaming: { level: 12, price: 2000 },
+    frost: { level: 8, price: 500 },
+    greaterFrost: { level: 12, price: 2000 },
+    shock: { level: 8, price: 500 },
+    greaterShock: { level: 12, price: 2000 },
+    thundering: { level: 8, price: 500 },
+    greaterThundering: { level: 12, price: 2000 },
+
+    holy: { level: 11, price: 1400 },
+    unholy: { level: 11, price: 1400 },
+
+    keen: { level: 13, price: 3000 },
+    vorpal: { level: 17, price: 15000 },
+
+    wounding: { level: 7, price: 340 },
+    greaterWounding: { level: 12, price: 2000 },
+
+    returning: { level: 3, price: 55 },
+    greaterReturning: { level: 13, price: 3000 },
+
+    ghostTouch: { level: 4, price: 75 },
+    greaterGhostTouch: { level: 7, price: 360 },
+
+    // Hier kannst du bei Bedarf weitere Weapon-Property-Runen ergänzen
+  },
+  shield: {
+    // Gibt es standardmäßig nicht – falls ihr Homebrew-Shield-Property-Runen habt,
+    // könnt ihr sie hier ergänzen.
   },
 };
 
@@ -135,7 +196,7 @@ const getRuneTransferCostCP = (priceGP) => {
   return Math.round((Number(priceGP) || 0) * 10);
 };
 
-/** CamelCase-Slug zu lesbarem Namen ("greaterSlick" -> "Greater Slick") */
+/** CamelCase/Slug zu lesbarem Namen ("greaterSlick" -> "Greater Slick") */
 const titleCaseFromSlug = (slug) => {
   if (!slug) return "";
   const cleaned = slug.toString().replace(/([A-Z])/g, " $1").replace(/[-_]+/g, " ");
@@ -205,7 +266,7 @@ const getFundamentalRuneLabel = (itemType, kind, rank) => {
   return `${kind} Rune (Rank ${r})`;
 };
 
-/** Für eine Fundamental-Rune Level & Preis holen (FUNDAMENTAL_RUNE_VALUATION) */
+/** Fundamental-Runen Level & Preis aus FUNDAMENTAL_RUNE_VALUATION holen */
 const getFundamentalRuneValuation = (itemType, kind, rank) => {
   const table = FUNDAMENTAL_RUNE_VALUATION[itemType]?.[kind];
   if (!table) return { level: 0, price: 0 };
@@ -214,27 +275,47 @@ const getFundamentalRuneValuation = (itemType, kind, rank) => {
   return { level: entry.level ?? 0, price: entry.price ?? 0 };
 };
 
-/** Versuch, für eine Property-Rune Level & Preis zu bekommen (über PF2e getRuneValuationData) */
-const getPropertyRuneValuation = (item, propertySlug, runeValuations) => {
-  if (!Array.isArray(runeValuations) || !propertySlug) {
-    return { level: 0, price: 0 };
-  }
-
-  const found = runeValuations.find(
-    (data) => typeof data?.slug === "string" && data.slug === propertySlug
-  );
-  if (!found) return { level: 0, price: 0 };
-
-  const level = Number(found.level ?? 0);
-  const price = Number(found.price ?? 0); // in GP laut PF2e-System
-  return { level: level || 0, price: price || 0 };
-};
-
-/** Pf2e-Rune-Valuation-Funktion holen (falls vorhanden) */
+/** PF2e-Rune-Valuation-Funktion holen (falls verfügbar) */
 const getRuneValuationFn = () =>
   globalThis.getRuneValuationData ??
   globalThis.game?.pf2e?.runes?.getRuneValuationData ??
   null;
+
+/** Versuch, für eine Property-Rune Level & Preis zu bekommen */
+const getPropertyRuneValuation = (item, propertySlug, runeValuations) => {
+  // 1) Versuch über getRuneValuationData (falls verfügbar)
+  if (Array.isArray(runeValuations) && runeValuations.length) {
+    const found = runeValuations.find(
+      (data) => typeof data?.slug === "string" && data.slug === propertySlug
+    );
+    if (found) {
+      const level = Number(found.level ?? 0) || 0;
+      const price = Number(found.price ?? 0) || 0;
+      if (price > 0 || level > 0) {
+        return { level, price };
+      }
+    }
+  }
+
+  // 2) Fallback über unsere lokale Tabelle
+  const itemType = item?.type;
+  const table =
+    itemType === "weapon"
+      ? FALLBACK_PROPERTY_RUNE_VALUATION.weapon
+      : itemType === "armor"
+      ? FALLBACK_PROPERTY_RUNE_VALUATION.armor
+      : itemType === "shield"
+      ? FALLBACK_PROPERTY_RUNE_VALUATION.shield
+      : null;
+
+  if (table && Object.prototype.hasOwnProperty.call(table, propertySlug)) {
+    const entry = table[propertySlug];
+    return { level: entry.level ?? 0, price: entry.price ?? 0 };
+  }
+
+  // 3) Wenn wir gar nichts wissen: 0 / 0 zurückgeben
+  return { level: 0, price: 0 };
+};
 
 /** Auswahl-Liste der einzelnen Runen eines Items vorbereiten */
 const buildRuneChoices = (sourceItem) => {
@@ -357,11 +438,10 @@ const buildRuneChoices = (sourceItem) => {
 };
 
 /**
- * Versucht, die 10%-Kosten einer Rune zuerst vom Actor,
- * dann vom Party-Stash abzuziehen.
- * priceGP = voller Runenpreis, cost = 10%
+ * Versucht, die 10%-Kosten einer Rune von Actor ODER Party abzuziehen,
+ * je nach paySource: "actor" | "party".
  */
-const payRuneTransferCost = async (actor, partyActor, priceGP) => {
+const payRuneTransferCost = async (actor, partyActor, priceGP, paySource) => {
   const costCP = getRuneTransferCostCP(priceGP); // 10% in Kupfer
   if (costCP <= 0) {
     return { success: true, costGP: 0 };
@@ -373,42 +453,45 @@ const payRuneTransferCost = async (actor, partyActor, priceGP) => {
   const actorCP = Number(actorCoins?.copperValue ?? 0);
   const partyCP = Number(partyCoins?.copperValue ?? 0);
 
-  if (actorCP + partyCP < costCP) {
-    ui.notifications?.warn?.("Not enough funds on actor and party to pay rune transfer cost (10%).");
-    return { success: false, costGP: costCP / 100 };
-  }
+  const costGP = costCP / 100;
 
-  let remainingCP = costCP;
-
-  // 1) Actor zuerst
-  if (actorCP > 0 && remainingCP > 0) {
-    const payCP = Math.min(actorCP, remainingCP);
-    const ok = await actor.inventory.removeCoins({ cp: payCP }, { byValue: true });
-    if (!ok) {
-      DBG_TRANSFER("Failed to remove coins from actor, but coins were available?", {
-        actorCP,
-        payCP,
-      });
+  if (paySource === "party") {
+    if (!partyActor) {
+      ui.notifications?.warn?.("No active party found to pay the rune transfer cost.");
+      return { success: false, costGP };
     }
-    remainingCP -= payCP;
-  }
-
-  // 2) Party, falls noch was übrig ist
-  if (partyActor && remainingCP > 0) {
-    const ok = await partyActor.inventory.removeCoins({ cp: remainingCP }, { byValue: true });
-    if (!ok) {
-      DBG_TRANSFER("Failed to remove coins from party, but coins were available?", {
-        partyCP,
-        remainingCP,
-      });
+    if (partyCP < costCP) {
       ui.notifications?.warn?.(
-        "Unexpected error during party coin deduction. Some funds may not have been removed."
+        `Party stash does not have enough funds to pay rune transfer cost (${costGP.toFixed(
+          2
+        )} gp).`
       );
+      return { success: false, costGP };
     }
-    remainingCP = 0;
+
+    const ok = await partyActor.inventory.removeCoins({ cp: costCP }, { byValue: true });
+    if (!ok) {
+      ui.notifications?.warn?.("Could not remove coins from party stash.");
+      return { success: false, costGP };
+    }
+    return { success: true, costGP };
   }
 
-  return { success: true, costGP: costCP / 100 };
+  // Default / "actor"
+  if (actorCP < costCP) {
+    ui.notifications?.warn?.(
+      `Actor does not have enough funds to pay rune transfer cost (${costGP.toFixed(2)} gp).`
+    );
+    return { success: false, costGP };
+  }
+
+  const ok = await actor.inventory.removeCoins({ cp: costCP }, { byValue: true });
+  if (!ok) {
+    ui.notifications?.warn?.("Could not remove coins from actor.");
+    return { success: false, costGP };
+  }
+
+  return { success: true, costGP };
 };
 
 /**
@@ -507,6 +590,7 @@ const performRuneTransferWithCost = async ({
   choice,
   method,
   removeFromSource,
+  paySource,
 }) => {
   const level = Number(choice.level ?? 0);
   const priceGP = Number(choice.price ?? 0);
@@ -520,17 +604,20 @@ const performRuneTransferWithCost = async ({
     priceGP,
     dc,
     costGP,
+    paySource,
   });
 
   if (method === "vendor") {
     // Direkt bezahlen und übertragen
-    const payment = await payRuneTransferCost(actor, partyActor, priceGP);
+    const payment = await payRuneTransferCost(actor, partyActor, priceGP, paySource);
     if (!payment.success) return;
 
     const ok = await executeSingleRuneTransfer({ source, target, choice, removeFromSource });
     if (ok) {
       ui.notifications?.info?.(
-        `Rune transferred via vendor. Cost: ${payment.costGP.toFixed(2)} gp (10% of rune price).`
+        `Rune transferred via vendor. Cost: ${payment.costGP.toFixed(
+          2
+        )} gp (10% of rune price).`
       );
     }
     return;
@@ -548,7 +635,9 @@ const performRuneTransferWithCost = async ({
     <p><strong>Rune Price:</strong> ${priceGP || 0} gp</p>
     <p><strong>Crafting Check DC:</strong> ${dc}</p>
     <p>${inlineCheck}</p>
-    <p>On success: Pay 10% of rune price (${costGP.toFixed(2)} gp) from actor/party funds and transfer the rune.</p>
+    <p>On success: Pay 10% of rune price (${costGP.toFixed(
+      2
+    )} gp) from ${paySource === "party" ? "party stash" : "actor"} funds and transfer the rune.</p>
   `;
 
   await ChatMessage.create({
@@ -565,7 +654,7 @@ const performRuneTransferWithCost = async ({
       success: {
         label: "Success",
         callback: async () => {
-          const payment = await payRuneTransferCost(actor, partyActor, priceGP);
+          const payment = await payRuneTransferCost(actor, partyActor, priceGP, paySource);
           if (!payment.success) return;
 
           const ok = await executeSingleRuneTransfer({
@@ -684,6 +773,14 @@ const handleTransferRunesClick = (event) => {
       </div>
 
       <div class="form-group">
+        <label>Payment source</label>
+        <div class="form-fields">
+          <label><input type="radio" name="pay-source" value="actor" checked /> Actor</label>
+          <label><input type="radio" name="pay-source" value="party" /> Party stash</label>
+        </div>
+      </div>
+
+      <div class="form-group">
         <label>
           <input type="checkbox" name="remove" checked />
           Remove rune from source after transfer
@@ -702,6 +799,7 @@ const handleTransferRunesClick = (event) => {
           const targetId = html.find("select[name='target']").val();
           const runeId = html.find("select[name='rune-choice']").val();
           const method = html.find("input[name='method']:checked").val() || "crafting";
+          const paySource = html.find("input[name='pay-source']:checked").val() || "actor";
           const remove = html.find("input[name='remove']").prop("checked");
 
           if (!targetId || !runeId) return;
@@ -723,6 +821,7 @@ const handleTransferRunesClick = (event) => {
             choice,
             method,
             removeFromSource: remove,
+            paySource,
           });
         },
       },
@@ -764,7 +863,7 @@ Hooks.once("ready", () => {
 // Hook: eigentliche Logik ausführen
 Hooks.on(
   "pf2eRuneManagerTransferRunes",
-  async ({ actor, partyActor, sourceId, targetId, choice, method, removeFromSource }) => {
+  async ({ actor, partyActor, sourceId, targetId, choice, method, removeFromSource, paySource }) => {
     const source = actor?.items?.get(sourceId);
     const target = actor?.items?.get(targetId);
     DBG_TRANSFER("pf2eRuneManagerTransferRunes", {
@@ -773,6 +872,7 @@ Hooks.on(
       choice,
       method,
       removeFromSource,
+      paySource,
     });
     if (!source || !target) return;
 
@@ -784,6 +884,7 @@ Hooks.on(
       choice,
       method,
       removeFromSource,
+      paySource: paySource || "actor",
     });
   }
 );
