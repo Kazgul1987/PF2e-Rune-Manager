@@ -81,64 +81,157 @@ const FUNDAMENTAL_RUNE_VALUATION = {
 };
 
 /**
- * Fallback-Preise für häufige Property-Runen, falls getRuneValuationData
- * in deiner laufenden PF2e-Version nicht erreichbar ist.
+ * Vollständige Fallback-Preise für alle Property-Runen (Armor & Weapon),
+ * falls getRuneValuationData in der laufenden PF2e-Version nicht erreichbar ist.
  *
- * Du kannst diese Tabelle jederzeit erweitern:
- *  - Schlüssel = slug der Rune (so wie in system.runes.property gespeichert)
- *  - level = Item Level
- *  - price = voller Runenpreis in GP
+ * Schlüssel = slug der Rune (so wie in system.runes.property gespeichert)
+ * level = Item Level
+ * price = voller Runenpreis in GP
  */
 const FALLBACK_PROPERTY_RUNE_VALUATION = {
   armor: {
-    slick: { level: 5, price: 45 },
-    greaterSlick: { level: 8, price: 450 },
-    majorSlick: { level: 16, price: 9000 },
-    trueSlick: { level: 19, price: 35000 },
-
-    glamered: { level: 5, price: 140 },
-    fortification: { level: 12, price: 2000 },
-    greaterFortification: { level: 19, price: 24000 },
-    trueFortification: { level: 20, price: 70000 },
-
-    energyAdaptive: { level: 13, price: 2600 },
-    antimagic: { level: 15, price: 6500 },
-    winged: { level: 13, price: 2500 },
-    greaterWinged: { level: 19, price: 35000 },
-
-    // Hier kannst du bei Bedarf weitere Armor-Property-Runen ergänzen
+    "acidResistant": { level: 8, price: 420 },
+    "advancing": { level: 9, price: 625 },
+    "aimAiding": { level: 6, price: 225 },
+    "antimagic": { level: 15, price: 6500 },
+    "assisting": { level: 5, price: 125 },
+    "bitter": { level: 9, price: 135 },
+    "coldResistant": { level: 8, price: 420 },
+    "deathless": { level: 7, price: 330 },
+    "electricityResistant": { level: 8, price: 420 },
+    "energyAdaptive": { level: 13, price: 2600 },
+    "ethereal": { level: 17, price: 13500 },
+    "fireResistant": { level: 8, price: 420 },
+    "fortification": { level: 12, price: 2000 },
+    "glamered": { level: 5, price: 140 },
+    "gliding": { level: 8, price: 450 },
+    "greaterAcidResistant": { level: 12, price: 1650 },
+    "greaterAdvancing": { level: 16, price: 8000 },
+    "greaterColdResistant": { level: 12, price: 1650 },
+    "greaterDread": { level: 18, price: 21000 },
+    "greaterElectricityResistant": { level: 12, price: 1650 },
+    "greaterFireResistant": { level: 12, price: 1650 },
+    "greaterFortification": { level: 19, price: 24000 },
+    "greaterInvisibility": { level: 10, price: 1000 },
+    "greaterQuenching": { level: 10, price: 1000 },
+    "greaterReady": { level: 11, price: 1200 },
+    "greaterShadow": { level: 9, price: 650 },
+    "greaterSlick": { level: 8, price: 450 },
+    "greaterStanching": { level: 9, price: 600 },
+    "greaterSwallowSpike": { level: 12, price: 1750 },
+    "greaterWinged": { level: 19, price: 35000 },
+    "immovable": { level: 12, price: 1800 },
+    "implacable": { level: 11, price: 1200 },
+    "invisibility": { level: 8, price: 500 },
+    "lesserDread": { level: 6, price: 225 },
+    "magnetizing": { level: 10, price: 900 },
+    "majorQuenching": { level: 14, price: 4500 },
+    "majorShadow": { level: 17, price: 14000 },
+    "majorSlick": { level: 16, price: 9000 },
+    "majorStanching": { level: 13, price: 2500 },
+    "majorSwallowSpike": { level: 16, price: 19250 },
+    "malleable": { level: 9, price: 650 },
+    "misleading": { level: 16, price: 8000 },
+    "moderateDread": { level: 12, price: 1800 },
+    "portable": { level: 9, price: 660 },
+    "quenching": { level: 6, price: 250 },
+    "raiment": { level: 5, price: 140 },
+    "ready": { level: 6, price: 200 },
+    "rockBraced": { level: 13, price: 3000 },
+    "shadow": { level: 5, price: 55 },
+    "sinisterKnight": { level: 8, price: 500 },
+    "sizeChanging": { level: 7, price: 350 },
+    "slick": { level: 5, price: 45 },
+    "soaring": { level: 14, price: 3750 },
+    "stanching": { level: 5, price: 130 },
+    "swallowSpike": { level: 6, price: 200 },
+    "trueQuenching": { level: 18, price: 24000 },
+    "trueStanching": { level: 17, price: 12500 },
+    "winged": { level: 13, price: 2500 },
   },
   weapon: {
-    flaming: { level: 8, price: 500 },
-    greaterFlaming: { level: 12, price: 2000 },
-    frost: { level: 8, price: 500 },
-    greaterFrost: { level: 12, price: 2000 },
-    shock: { level: 8, price: 500 },
-    greaterShock: { level: 12, price: 2000 },
-    thundering: { level: 8, price: 500 },
-    greaterThundering: { level: 12, price: 2000 },
-
-    holy: { level: 11, price: 1400 },
-    unholy: { level: 11, price: 1400 },
-
-    keen: { level: 13, price: 3000 },
-    vorpal: { level: 17, price: 15000 },
-
-    wounding: { level: 7, price: 340 },
-    greaterWounding: { level: 12, price: 2000 },
-
-    returning: { level: 3, price: 55 },
-    greaterReturning: { level: 13, price: 3000 },
-
-    ghostTouch: { level: 4, price: 75 },
-    greaterGhostTouch: { level: 7, price: 360 },
-
-    // Hier kannst du bei Bedarf weitere Weapon-Property-Runen ergänzen
+    "ancestralEchoing": { level: 15, price: 9500 },
+    "anchoring": { level: 10, price: 900 },
+    "ashen": { level: 9, price: 700 },
+    "astral": { level: 8, price: 450 },
+    "authorized": { level: 3, price: 50 },
+    "bane": { level: 4, price: 100 },
+    "bloodbane": { level: 8, price: 475 },
+    "bloodthirsty": { level: 16, price: 8500 },
+    "brilliant": { level: 12, price: 2000 },
+    "called": { level: 7, price: 350 },
+    "coating": { level: 9, price: 700 },
+    "conducting": { level: 7, price: 300 },
+    "corrosive": { level: 8, price: 500 },
+    "crushing": { level: 3, price: 50 },
+    "cunning": { level: 5, price: 140 },
+    "dancing": { level: 13, price: 2700 },
+    "deathdrinking": { level: 7, price: 360 },
+    "decaying": { level: 8, price: 500 },
+    "demolishing": { level: 6, price: 225 },
+    "disrupting": { level: 5, price: 150 },
+    "earthbinding": { level: 5, price: 125 },
+    "energizing": { level: 6, price: 250 },
+    "extending": { level: 7, price: 700 },
+    "fanged": { level: 2, price: 30 },
+    "fearsome": { level: 5, price: 160 },
+    "flaming": { level: 8, price: 500 },
+    "flickering": { level: 6, price: 250 },
+    "flurrying": { level: 7, price: 360 },
+    "frost": { level: 8, price: 500 },
+    "ghostTouch": { level: 4, price: 75 },
+    "giantKilling": { level: 8, price: 450 },
+    "greaterAnchoring": { level: 18, price: 22000 },
+    "greaterAshen": { level: 16, price: 9000 },
+    "greaterAstral": { level: 15, price: 6000 },
+    "greaterBloodbane": { level: 13, price: 2800 },
+    "greaterBrilliant": { level: 18, price: 24000 },
+    "greaterCorrosive": { level: 15, price: 6500 },
+    "greaterCrushing": { level: 9, price: 650 },
+    "greaterDecaying": { level: 15, price: 6500 },
+    "greaterDisrupting": { level: 14, price: 4300 },
+    "greaterExtending": { level: 13, price: 3000 },
+    "greaterFanged": { level: 8, price: 425 },
+    "greaterFearsome": { level: 12, price: 2000 },
+    "greaterFlaming": { level: 15, price: 6500 },
+    "greaterFrost": { level: 15, price: 6500 },
+    "greaterGiantKilling": { level: 15, price: 6000 },
+    "greaterHauling": { level: 11, price: 1300 },
+    "greaterImpactful": { level: 17, price: 15000 },
+    "greaterRooting": { level: 11, price: 1400 },
+    "greaterShock": { level: 15, price: 6500 },
+    "greaterThundering": { level: 15, price: 6500 },
+    "grievous": { level: 9, price: 700 },
+    "hauling": { level: 6, price: 225 },
+    "holy": { level: 11, price: 1400 },
+    "hooked": { level: 5, price: 140 },
+    "hopeful": { level: 11, price: 1200 },
+    "impactful": { level: 10, price: 1000 },
+    "impossible": { level: 20, price: 70000 },
+    "keen": { level: 13, price: 3000 },
+    "kinWarding": { level: 3, price: 52 },
+    "majorFanged": { level: 15, price: 6000 },
+    "majorRooting": { level: 15, price: 6500 },
+    "merciful": { level: 4, price: 70 },
+    "nightmare": { level: 9, price: 250 },
+    "pacifying": { level: 5, price: 150 },
+    "returning": { level: 3, price: 55 },
+    "rooting": { level: 7, price: 360 },
+    "serrating": { level: 10, price: 1000 },
+    "shifting": { level: 6, price: 225 },
+    "shock": { level: 8, price: 500 },
+    "shockwave": { level: 13, price: 3000 },
+    "speed": { level: 16, price: 10000 },
+    "spellStoring": { level: 13, price: 2700 },
+    "swarming": { level: 9, price: 700 },
+    "thundering": { level: 8, price: 500 },
+    "trueRooting": { level: 19, price: 40000 },
+    "underwater": { level: 3, price: 50 },
+    "unholy": { level: 11, price: 1400 },
+    "vorpal": { level: 17, price: 15000 },
+    "wounding": { level: 7, price: 340 },
   },
-  shield: {
-    // Gibt es standardmäßig nicht – falls ihr Homebrew-Shield-Property-Runen habt,
-    // könnt ihr sie hier ergänzen.
-  },
+  shield: {},
 };
 
 // --- Utils ---
@@ -789,46 +882,49 @@ const handleTransferRunesClick = (event) => {
     </form>
   `;
 
-  new Dialog({
-    title: "Transfer Runes",
-    content: dialogContent,
-    buttons: {
-      confirm: {
-        label: "Confirm",
-        callback: async (html) => {
-          const targetId = html.find("select[name='target']").val();
-          const runeId = html.find("select[name='rune-choice']").val();
-          const method = html.find("input[name='method']:checked").val() || "crafting";
-          const paySource = html.find("input[name='pay-source']:checked").val() || "actor";
-          const remove = html.find("input[name='remove']").prop("checked");
+  new Dialog(
+    {
+      title: "Transfer Runes",
+      content: dialogContent,
+      buttons: {
+        confirm: {
+          label: "Confirm",
+          callback: async (html) => {
+            const targetId = html.find("select[name='target']").val();
+            const runeId = html.find("select[name='rune-choice']").val();
+            const method = html.find("input[name='method']:checked").val() || "crafting";
+            const paySource = html.find("input[name='pay-source']:checked").val() || "actor";
+            const remove = html.find("input[name='remove']").prop("checked");
 
-          if (!targetId || !runeId) return;
+            if (!targetId || !runeId) return;
 
-          const target = actor.items.get(targetId);
-          if (!target) return;
+            const target = actor.items.get(targetId);
+            if (!target) return;
 
-          const choice = runeChoices.find((c) => c.id === runeId);
-          if (!choice) {
-            ui.notifications?.warn?.("Selected rune could not be resolved.");
-            return;
-          }
+            const choice = runeChoices.find((c) => c.id === runeId);
+            if (!choice) {
+              ui.notifications?.warn?.("Selected rune could not be resolved.");
+              return;
+            }
 
-          Hooks.callAll("pf2eRuneManagerTransferRunes", {
-            actor,
-            partyActor,
-            sourceId,
-            targetId,
-            choice,
-            method,
-            removeFromSource: remove,
-            paySource,
-          });
+            Hooks.callAll("pf2eRuneManagerTransferRunes", {
+              actor,
+              partyActor,
+              sourceId,
+              targetId,
+              choice,
+              method,
+              removeFromSource: remove,
+              paySource,
+            });
+          },
         },
+        cancel: { label: "Cancel" },
       },
-      cancel: { label: "Cancel" },
+      default: "confirm",
     },
-    default: "confirm",
-  }).render(true);
+    { width: 650 } // <-- größerer Dialog für bessere Lesbarkeit
+  ).render(true);
 };
 
 /** Icon in die Actor-Sheet-Inventarliste einbauen */
