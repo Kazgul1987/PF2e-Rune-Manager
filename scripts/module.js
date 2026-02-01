@@ -4,6 +4,36 @@ const CLICK_NAMESPACE = ".pf2eRuneManager";
 
 const DBG = (...args) => console.log("[RuneManager DBG]", ...args);
 
+// --- DC-Tabelle nach Level (moderate DC, GM Core / DC-by-level) ---
+const LEVEL_DC_MAP = {
+  0: 14,
+  1: 15,
+  2: 16,
+  3: 18,
+  4: 19,
+  5: 20,
+  6: 22,
+  7: 23,
+  8: 24,
+  9: 26,
+  10: 27,
+  11: 28,
+  12: 30,
+  13: 31,
+  14: 32,
+  15: 34,
+  16: 35,
+  17: 36,
+  18: 38,
+  19: 39,
+  20: 40,
+};
+
+const getDCForRuneLevel = (level) => {
+  const lvl = Math.max(0, Math.min(20, Number(level) || 0));
+  return LEVEL_DC_MAP[lvl] ?? 14;
+};
+
 const FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS = new Set([
   "anarchic",
   "axiomatic",
@@ -595,17 +625,52 @@ Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId, consumeR
   const runeCategory = getRuneCategory(runeItem);
   DBG("runeCategory", runeCategory);
 
-  if (runeCategory === "property" || runeCategory === "weapon") {
-    const applied = await applyPropertyRune(runeItem, targetItem);
-    if (applied && shouldConsume) await runeItem.delete();
-    return;
-  }
+  const runeLevel = runeItem?.system?.level?.value ?? runeItem?.system?.level ?? 0;
+  const dc = getDCForRuneLevel(runeLevel);
+  const inlineCheck = `@Check[crafting|dc:${dc}|name:${runeItem.name}]`;
+  const speaker = ChatMessage.getSpeaker({ actor });
 
-  if (runeCategory === "fundamental") {
-    const applied = await applyFundamentalRune(runeItem, targetItem);
-    if (applied && shouldConsume) await runeItem.delete();
-    return;
-  }
+  const content = `
+    <p><strong>Rune Attach (Crafting)</strong></p>
+    <p><strong>Rune:</strong> ${runeItem?.name ?? "?"}</p>
+    <p><strong>Target:</strong> ${targetItem?.name ?? "?"}</p>
+    <p><strong>Item Level:</strong> ${runeLevel || "?"}</p>
+    <p><strong>Crafting Check DC:</strong> ${dc}</p>
+    <p>${inlineCheck}</p>
+  `;
 
-  ui.notifications?.warn("Unable to determine rune category.");
+  await ChatMessage.create({
+    speaker,
+    content,
+    type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+  });
+
+  new Dialog({
+    title: "Crafting Result",
+    content: `<p>Did the crafting check to attach <strong>${runeItem?.name ?? "this rune"}</strong> (DC ${dc}) succeed?</p>`,
+    buttons: {
+      success: {
+        label: "Success",
+        callback: async () => {
+          if (runeCategory === "property" || runeCategory === "weapon") {
+            const applied = await applyPropertyRune(runeItem, targetItem);
+            if (applied && shouldConsume) await runeItem.delete();
+            return;
+          }
+
+          if (runeCategory === "fundamental") {
+            const applied = await applyFundamentalRune(runeItem, targetItem);
+            if (applied && shouldConsume) await runeItem.delete();
+            return;
+          }
+
+          ui.notifications?.warn("Unable to determine rune category.");
+        },
+      },
+      failure: {
+        label: "Failure",
+      },
+    },
+    default: "failure",
+  }).render(true);
 });
