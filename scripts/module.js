@@ -434,9 +434,83 @@ const applyPropertyRune = async (runeItem, targetItem) => {
 
   const existing = targetItem?.system?.runes?.property ?? [];
   const maxSlots = getPropertyRuneSlots(targetItem);
-  if (!maxSlots || existing.length >= maxSlots) {
+  if (!maxSlots) {
     ui.notifications?.warn?.("No available property rune slots.");
     return false;
+  }
+
+  const getPropertyRuneLabel = (value) => {
+    if (!systemRuneData) return value;
+    const propertyData =
+      targetItem.type === "armor"
+        ? systemRuneData.armor?.property
+        : systemRuneData.weapon?.property;
+    if (!propertyData) return value;
+    const direct = propertyData[value];
+    if (direct?.name) return direct.name;
+    const match = Object.values(propertyData).find((entry) => entry?.slug === value);
+    return match?.name ?? value;
+  };
+
+  const removeFirstMatch = (list, value) => {
+    let removed = false;
+    return list.filter((entry) => {
+      if (!removed && entry === value) {
+        removed = true;
+        return false;
+      }
+      return true;
+    });
+  };
+
+  const promptRuneRemoval = async () =>
+    new Promise((resolve) => {
+      let resolved = false;
+      const options = existing
+        .map((value) => {
+          const label = getPropertyRuneLabel(value);
+          return `<option value="${value}">${label}</option>`;
+        })
+        .join("");
+      const content = `
+        <p>Alle Property-Runen-Slots sind belegt.</p>
+        <p>Welche Rune entfernen?</p>
+        <div class="form-group">
+          <label>Rune</label>
+          <select name="remove-rune">${options}</select>
+        </div>
+      `;
+      const finalize = (value) => {
+        if (resolved) return;
+        resolved = true;
+        resolve(value ?? null);
+      };
+      new Dialog({
+        title: "Property-Runen-Slots belegt",
+        content,
+        buttons: {
+          confirm: {
+            label: "Ersetzen",
+            callback: (html) => {
+              const value = html.find('select[name="remove-rune"]').val();
+              finalize(value);
+            },
+          },
+          cancel: {
+            label: "Abbrechen",
+            callback: () => finalize(null),
+          },
+        },
+        default: "confirm",
+        close: () => finalize(null),
+      }).render(true);
+    });
+
+  let updatedExisting = existing;
+  if (existing.length >= maxSlots) {
+    const removal = await promptRuneRemoval();
+    if (!removal) return false;
+    updatedExisting = removeFirstMatch(existing, removal);
   }
 
   // Kein PF2e RUNE_DATA – simpler Fallback nur für bekannte Waffen-Property-Runen
@@ -445,14 +519,14 @@ const applyPropertyRune = async (runeItem, targetItem) => {
 
     // Fallback für Waffen-Property-Runen (wie bisher)
     if (targetItem.type === "weapon" && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(runeSlug)) {
-      const updated = Array.from(new Set([...existing, runeSlug]));
+      const updated = Array.from(new Set([...updatedExisting, runeSlug]));
       await targetItem.update({ "system.runes.property": updated });
       return true;
     }
 
     // NEU: Fallback für Armor-Property-Runen, wenn keine RUNE_DATA verfügbar ist
     if (targetItem.type === "armor" && usage.startsWith("etched-onto-armor")) {
-      const updated = Array.from(new Set([...existing, runeSlug]));
+      const updated = Array.from(new Set([...updatedExisting, runeSlug]));
       await targetItem.update({ "system.runes.property": updated });
       return true;
     }
@@ -476,14 +550,14 @@ const applyPropertyRune = async (runeItem, targetItem) => {
 
   if (kind === "weapon" && targetItem.type === "weapon") {
     const weaponPropertyData = systemRuneData.weapon?.property ?? {};
-    const updated = systemPrunePropertyRunes([...existing, key], weaponPropertyData);
+    const updated = systemPrunePropertyRunes([...updatedExisting, key], weaponPropertyData);
     await targetItem.update({ "system.runes.property": updated });
     return true;
   }
 
   if (kind === "armor" && targetItem.type === "armor") {
     const armorPropertyData = systemRuneData.armor?.property ?? {};
-    const updated = systemPrunePropertyRunes([...existing, key], armorPropertyData);
+    const updated = systemPrunePropertyRunes([...updatedExisting, key], armorPropertyData);
     await targetItem.update({ "system.runes.property": updated });
     return true;
   }
