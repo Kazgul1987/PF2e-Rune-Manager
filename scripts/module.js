@@ -123,6 +123,121 @@ const getPropertyRuneSlots = (targetItem) => {
   return Math.max(0, potency);
 };
 
+const getActivePartyActor = () => {
+  try {
+    const partyId = game.settings?.get?.("pf2e", "activeParty");
+    if (!partyId) return null;
+    return game.actors?.get?.(partyId) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const isRunestoneItem = (item) => {
+  const slug = sluggifyText(item?.system?.slug ?? item?.slug ?? item?.name ?? "");
+  const name = (item?.name ?? "").toString().toLowerCase();
+  return slug.includes("runestone") || name.includes("runestone") || name.includes("rune stone");
+};
+
+const findRunestoneOwner = (actor) => {
+  const actorRunestone = actor?.items?.find?.(isRunestoneItem) ?? null;
+  if (actorRunestone) {
+    return {
+      owner: actor,
+      locationLabel: "actor inventory",
+      runestone: actorRunestone,
+    };
+  }
+
+  const partyActor = getActivePartyActor();
+  if (!partyActor || partyActor?.id === actor?.id) return null;
+  const partyRunestone = partyActor?.items?.find?.(isRunestoneItem) ?? null;
+  if (!partyRunestone) return null;
+
+  return {
+    owner: partyActor,
+    locationLabel: "party stash",
+    runestone: partyRunestone,
+  };
+};
+
+const getPropertyRuneEntry = (propertyData, runeKey) => {
+  if (!propertyData || !runeKey) return null;
+  return propertyData[runeKey] ?? Object.values(propertyData).find((entry) => entry?.slug === runeKey);
+};
+
+const buildPropertyRuneItemData = ({
+  runeKey,
+  kind,
+  runeItem,
+  propertyData,
+  fallbackLabel,
+}) => {
+  const entry = getPropertyRuneEntry(propertyData, runeKey);
+  const name = entry?.name ?? fallbackLabel ?? runeKey ?? "Property Rune";
+  const slug = entry?.slug ?? runeKey ?? sluggifyText(name);
+  const levelValue =
+    entry?.level ??
+    entry?.itemLevel ??
+    entry?.lvl ??
+    runeItem?.system?.level?.value ??
+    runeItem?.system?.level ??
+    0;
+  const rawTraits = entry?.traits ?? entry?.traits?.value ?? [];
+  const traits = Array.isArray(rawTraits)
+    ? rawTraits.map((trait) => trait.toString().toLowerCase())
+    : [];
+  if (!traits.includes("property")) traits.push("property");
+
+  return {
+    name,
+    type: runeItem?.type ?? "equipment",
+    system: {
+      slug,
+      level: { value: Number(levelValue) || 0 },
+      traits: { value: traits },
+      usage: { value: kind === "armor" ? "etched-onto-armor" : "etched-onto-weapon" },
+    },
+  };
+};
+
+const handleRemovedPropertyRune = async ({
+  actor,
+  runeItem,
+  removedRuneKey,
+  kind,
+  systemRuneData,
+  getPropertyRuneLabel,
+}) => {
+  if (!removedRuneKey) return;
+
+  const ownerInfo = findRunestoneOwner(actor);
+  const label = getPropertyRuneLabel?.(removedRuneKey) ?? removedRuneKey ?? "Property Rune";
+
+  if (!ownerInfo) {
+    ui.notifications?.warn?.(`No runestone found. ${label} is destroyed.`);
+    return;
+  }
+
+  const propertyData =
+    kind === "armor" ? systemRuneData?.armor?.property : systemRuneData?.weapon?.property;
+  const runeData = buildPropertyRuneItemData({
+    runeKey: removedRuneKey,
+    kind,
+    runeItem,
+    propertyData,
+    fallbackLabel: label,
+  });
+
+  try {
+    await ownerInfo.owner?.createEmbeddedDocuments?.("Item", [runeData]);
+    ui.notifications?.info?.(`${label} stored in ${ownerInfo.locationLabel}.`);
+  } catch (error) {
+    ui.notifications?.warn?.(`Failed to store ${label}. It is destroyed.`);
+    DBG("handleRemovedPropertyRune failed", error);
+  }
+};
+
 const isRuneCompatible = (runeItem, targetItem) => {
   if (!runeItem || !targetItem) return false;
   if (!["weapon", "armor", "shield"].includes(targetItem.type)) return false;
@@ -507,10 +622,12 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     });
 
   let updatedExisting = existing;
+  let removedRuneKey = null;
   if (existing.length >= maxSlots) {
     const removal = await promptRuneRemoval();
     if (!removal) return false;
     updatedExisting = removeFirstMatch(existing, removal);
+    removedRuneKey = removal;
   }
 
   // Kein PF2e RUNE_DATA – simpler Fallback nur für bekannte Waffen-Property-Runen
@@ -521,6 +638,14 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     if (targetItem.type === "weapon" && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(runeSlug)) {
       const updated = Array.from(new Set([...updatedExisting, runeSlug]));
       await targetItem.update({ "system.runes.property": updated });
+      await handleRemovedPropertyRune({
+        actor: targetItem?.actor ?? runeItem?.actor,
+        runeItem,
+        removedRuneKey,
+        kind: "weapon",
+        systemRuneData: null,
+        getPropertyRuneLabel,
+      });
       return true;
     }
 
@@ -528,6 +653,14 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     if (targetItem.type === "armor" && usage.startsWith("etched-onto-armor")) {
       const updated = Array.from(new Set([...updatedExisting, runeSlug]));
       await targetItem.update({ "system.runes.property": updated });
+      await handleRemovedPropertyRune({
+        actor: targetItem?.actor ?? runeItem?.actor,
+        runeItem,
+        removedRuneKey,
+        kind: "armor",
+        systemRuneData: null,
+        getPropertyRuneLabel,
+      });
       return true;
     }
 
@@ -552,6 +685,14 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     const weaponPropertyData = systemRuneData.weapon?.property ?? {};
     const updated = systemPrunePropertyRunes([...updatedExisting, key], weaponPropertyData);
     await targetItem.update({ "system.runes.property": updated });
+    await handleRemovedPropertyRune({
+      actor: targetItem?.actor ?? runeItem?.actor,
+      runeItem,
+      removedRuneKey,
+      kind: "weapon",
+      systemRuneData,
+      getPropertyRuneLabel,
+    });
     return true;
   }
 
@@ -559,6 +700,14 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     const armorPropertyData = systemRuneData.armor?.property ?? {};
     const updated = systemPrunePropertyRunes([...updatedExisting, key], armorPropertyData);
     await targetItem.update({ "system.runes.property": updated });
+    await handleRemovedPropertyRune({
+      actor: targetItem?.actor ?? runeItem?.actor,
+      runeItem,
+      removedRuneKey,
+      kind: "armor",
+      systemRuneData,
+      getPropertyRuneLabel,
+    });
     return true;
   }
 
