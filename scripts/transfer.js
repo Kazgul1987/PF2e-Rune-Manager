@@ -374,6 +374,14 @@ const getRuneValuationFn = () =>
   globalThis.game?.pf2e?.runes?.getRuneValuationData ??
   null;
 
+const normalizePropertyRuneFamilySlug = (slug) => {
+  if (typeof slug !== "string") return "";
+  const match = slug.match(/^(greater|major|lesser|minor|moderate|supreme|true)([A-Z].*)/);
+  if (!match) return slug;
+  const remainder = match[2];
+  return remainder.charAt(0).toLowerCase() + remainder.slice(1);
+};
+
 /** Versuch, für eine Property-Rune Level & Preis zu bekommen */
 const getPropertyRuneValuation = (item, propertySlug, runeValuations) => {
   // 1) Versuch über getRuneValuationData (falls verfügbar)
@@ -408,6 +416,37 @@ const getPropertyRuneValuation = (item, propertySlug, runeValuations) => {
 
   // 3) Wenn wir gar nichts wissen: 0 / 0 zurückgeben
   return { level: 0, price: 0 };
+};
+
+const getTargetRunePriceGP = (target, choice) => {
+  if (!target || !choice) return 0;
+  if (choice.type === "fundamental") {
+    const kind = choice.kind;
+    const itemType = choice.itemType ?? target.type;
+    const targetRank = Number(target?.system?.runes?.[kind] ?? 0);
+    if (!targetRank) return 0;
+    const { price } = getFundamentalRuneValuation(itemType, kind, targetRank);
+    return Number(price ?? 0) || 0;
+  }
+
+  if (choice.type === "property") {
+    const targetProps = Array.isArray(target?.system?.runes?.property)
+      ? target.system.runes.property
+      : [];
+    if (!choice.slug || !targetProps.length) return 0;
+    const targetRuneFamily = normalizePropertyRuneFamilySlug(choice.slug);
+    const matchingSlug = targetProps.find(
+      (slug) => normalizePropertyRuneFamilySlug(slug) === targetRuneFamily
+    );
+    if (!matchingSlug) return 0;
+    const runeValuationFn = getRuneValuationFn();
+    const runeValuations =
+      typeof runeValuationFn === "function" ? runeValuationFn(target) ?? [] : [];
+    const { price } = getPropertyRuneValuation(target, matchingSlug, runeValuations);
+    return Number(price ?? 0) || 0;
+  }
+
+  return 0;
 };
 
 /** Auswahl-Liste der einzelnen Runen eines Items vorbereiten */
@@ -686,15 +725,19 @@ const performRuneTransferWithCost = async ({
   paySource,
 }) => {
   const level = Number(choice.level ?? 0);
-  const priceGP = Number(choice.price ?? 0);
+  const sourcePriceGP = Number(choice.price ?? 0);
+  const targetPriceGP = getTargetRunePriceGP(target, choice);
+  const diffPriceGP = Math.abs(sourcePriceGP - targetPriceGP);
   const dc = getDCForRuneLevel(level);
-  const costGP = getRuneTransferCostGP(priceGP);
+  const costGP = getRuneTransferCostGP(diffPriceGP);
 
   DBG_TRANSFER("performRuneTransferWithCost", {
     method,
     choice,
     level,
-    priceGP,
+    sourcePriceGP,
+    targetPriceGP,
+    diffPriceGP,
     dc,
     costGP,
     paySource,
@@ -702,7 +745,7 @@ const performRuneTransferWithCost = async ({
 
   if (method === "vendor") {
     // Direkt bezahlen und übertragen
-    const payment = await payRuneTransferCost(actor, partyActor, priceGP, paySource);
+    const payment = await payRuneTransferCost(actor, partyActor, diffPriceGP, paySource);
     if (!payment.success) return;
 
     const ok = await executeSingleRuneTransfer({ source, target, choice, removeFromSource });
@@ -710,7 +753,7 @@ const performRuneTransferWithCost = async ({
       ui.notifications?.info?.(
         `Rune transferred via vendor. Cost: ${payment.costGP.toFixed(
           2
-        )} gp (10% of rune price).`
+        )} gp (10% of price difference).`
       );
     }
     return;
@@ -725,10 +768,10 @@ const performRuneTransferWithCost = async ({
     <p><strong>Rune Transfer (Crafting)</strong></p>
     <p><strong>Rune:</strong> ${runeLabel}</p>
     <p><strong>Item Level:</strong> ${level || "?"}</p>
-    <p><strong>Rune Price:</strong> ${priceGP || 0} gp</p>
+    <p><strong>Rune Price Difference:</strong> ${diffPriceGP || 0} gp</p>
     <p><strong>Crafting Check DC:</strong> ${dc}</p>
     <p>${inlineCheck}</p>
-    <p>On success: Pay 10% of rune price (${costGP.toFixed(
+    <p>On success: Pay 10% of price difference (${costGP.toFixed(
       2
     )} gp) from ${paySource === "party" ? "party stash" : "actor"} funds and transfer the rune.</p>
   `;
@@ -747,7 +790,7 @@ const performRuneTransferWithCost = async ({
       success: {
         label: "Success",
         callback: async () => {
-          const payment = await payRuneTransferCost(actor, partyActor, priceGP, paySource);
+          const payment = await payRuneTransferCost(actor, partyActor, diffPriceGP, paySource);
           if (!payment.success) return;
 
           const ok = await executeSingleRuneTransfer({
@@ -760,7 +803,7 @@ const performRuneTransferWithCost = async ({
             ui.notifications?.info?.(
               `Rune transferred via crafting. Cost: ${payment.costGP.toFixed(
                 2
-              )} gp (10% of rune price).`
+              )} gp (10% of price difference).`
             );
           }
         },
