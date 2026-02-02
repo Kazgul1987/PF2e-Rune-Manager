@@ -407,6 +407,41 @@ export class CharacterActor {
     return `<form><div class="form-group">${options}</div></form>`;
   }
 
+  private buildRunedItemName(
+    targetItem: RuneManagerItem,
+    runesState: {
+      potency?: number;
+      striking?: string;
+      resilient?: string;
+      reinforcing?: string;
+      property?: string[];
+    }
+  ): string {
+    const baseName = this.getBaseItemName(targetItem);
+    const cleanedBaseName = this.stripExistingRunePrefixes(baseName, runesState);
+    const prefixes: string[] = [];
+
+    if (typeof runesState.potency === "number") {
+      prefixes.push(`+${runesState.potency}`);
+    }
+
+    const fundamentalPrefix = this.getFundamentalPrefix(targetItem, runesState);
+    if (fundamentalPrefix) {
+      prefixes.push(fundamentalPrefix);
+    }
+
+    const propertyPrefixes = this.getPropertyRunePrefixes(runesState);
+    if (propertyPrefixes.length > 0) {
+      prefixes.push(...propertyPrefixes);
+    }
+
+    if (prefixes.length === 0) {
+      return cleanedBaseName;
+    }
+
+    return `${prefixes.join(" ")} ${cleanedBaseName}`.trim();
+  }
+
   private async attachRuneToItem(
     runeItem: RuneManagerItem,
     targetItem: RuneManagerItem
@@ -468,9 +503,167 @@ export class CharacterActor {
       }
     }
 
+    const currentRunesState = (targetItem.system as {
+      runes?: {
+        potency?: number;
+        striking?: string;
+        resilient?: string;
+        reinforcing?: string;
+        property?: string[];
+      };
+    })?.runes;
+    const currentPropertyRunes = this.getAttachedPropertyRunes(targetItem);
+    const updatedPropertyRunes =
+      propertyRuneSlug && !currentPropertyRunes.includes(propertyRuneSlug)
+        ? [...currentPropertyRunes, propertyRuneSlug]
+        : currentPropertyRunes;
+    const runesState = {
+      potency: currentRunesState?.potency,
+      striking: currentRunesState?.striking,
+      resilient: currentRunesState?.resilient,
+      reinforcing: currentRunesState?.reinforcing,
+      property: updatedPropertyRunes,
+    };
+
+    if (fundamentalUpdate) {
+      if (typeof fundamentalUpdate.potency === "number") {
+        runesState.potency = fundamentalUpdate.potency;
+      }
+      if (fundamentalUpdate.striking) {
+        runesState.striking = fundamentalUpdate.striking;
+      }
+      if (fundamentalUpdate.resilient) {
+        runesState.resilient = fundamentalUpdate.resilient;
+      }
+      if (fundamentalUpdate.reinforcing) {
+        runesState.reinforcing = fundamentalUpdate.reinforcing;
+      }
+    }
+
+    const newName = this.buildRunedItemName(targetItem, runesState);
+    updateData["name"] = newName;
+
     await targetItem.update(updateData);
     ui.notifications?.info(`Rune ${runeItem.name} wurde an ${targetItem.name} angebracht.`);
     return true;
+  }
+
+  private getBaseItemName(targetItem: RuneManagerItem): string {
+    const baseItem = (targetItem.system as { baseItem?: unknown } | undefined)
+      ?.baseItem;
+    if (typeof baseItem === "string" && baseItem.trim().length > 0) {
+      return baseItem;
+    }
+
+    return targetItem.name;
+  }
+
+  private stripExistingRunePrefixes(
+    name: string,
+    runesState: {
+      potency?: number;
+      striking?: string;
+      resilient?: string;
+      reinforcing?: string;
+      property?: string[];
+    }
+  ): string {
+    const propertyPrefixes = this.getPropertyRunePrefixes(runesState).map((prefix) =>
+      prefix.toLowerCase()
+    );
+    const knownPrefixes = [
+      "+\\d",
+      "striking",
+      "greater striking",
+      "major striking",
+      "resilient",
+      "greater resilient",
+      "major resilient",
+      "reinforcing",
+      "greater reinforcing",
+      "major reinforcing",
+      ...propertyPrefixes,
+    ];
+
+    if (knownPrefixes.length === 0) {
+      return name.trim();
+    }
+
+    const escapedPrefixes = knownPrefixes.map((prefix) =>
+      prefix === "+\\d" ? "\\+\\d" : this.escapeRegex(prefix)
+    );
+    const prefixRegex = new RegExp(
+      `^\\s*(?:${escapedPrefixes.join("|")})\\s+`,
+      "i"
+    );
+
+    let cleanedName = name.trim();
+    let iterations = 0;
+    while (prefixRegex.test(cleanedName) && iterations < 10) {
+      cleanedName = cleanedName.replace(prefixRegex, "").trim();
+      iterations += 1;
+    }
+
+    return cleanedName;
+  }
+
+  private getFundamentalPrefix(
+    targetItem: RuneManagerItem,
+    runesState: {
+      striking?: string;
+      resilient?: string;
+      reinforcing?: string;
+    }
+  ): string | null {
+    const targetType = this.getItemRuneTargetType(targetItem);
+    const prefixMap: Record<string, string> = {
+      striking: "striking",
+      greaterStriking: "greater striking",
+      majorStriking: "major striking",
+      resilient: "resilient",
+      greaterResilient: "greater resilient",
+      majorResilient: "major resilient",
+      reinforcing: "reinforcing",
+      greaterReinforcing: "greater reinforcing",
+      majorReinforcing: "major reinforcing",
+    };
+
+    if (targetType === "weapon") {
+      return runesState.striking ? prefixMap[runesState.striking] ?? null : null;
+    }
+    if (targetType === "armor") {
+      return runesState.resilient ? prefixMap[runesState.resilient] ?? null : null;
+    }
+    if (targetType === "shield") {
+      return runesState.reinforcing
+        ? prefixMap[runesState.reinforcing] ?? null
+        : null;
+    }
+
+    return null;
+  }
+
+  private getPropertyRunePrefixes(runesState: { property?: string[] }): string[] {
+    if (!Array.isArray(runesState.property)) {
+      return [];
+    }
+
+    return runesState.property
+      .map((slug) => this.formatPropertyRuneName(slug))
+      .filter((name) => name.length > 0);
+  }
+
+  private formatPropertyRuneName(runeSlug: string): string {
+    if (!runeSlug) {
+      return "";
+    }
+
+    const normalized = this.normalizeRuneSlug(runeSlug);
+    return normalized.replace(/-/g, " ").toLowerCase();
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   private getAttachedPropertyRunes(targetItem: RuneManagerItem): string[] {
