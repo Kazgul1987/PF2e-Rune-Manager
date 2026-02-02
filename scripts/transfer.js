@@ -645,19 +645,20 @@ const executeSingleRuneTransfer = async ({ source, target, choice, removeFromSou
   if (choice.type === "fundamental") {
     const { kind, rank } = choice;
     const r = Number(rank ?? 0);
+    const targetRank = Number(targetRunes?.[kind] ?? 0) || 0;
 
     if (kind === "potency" && (isWeapon || isArmor)) {
       updatesTarget["system.runes.potency"] = r;
-      if (removeFromSource) updatesSource["system.runes.potency"] = 0;
+      if (removeFromSource) updatesSource["system.runes.potency"] = targetRank;
     } else if (kind === "striking" && isWeapon) {
       updatesTarget["system.runes.striking"] = r;
-      if (removeFromSource) updatesSource["system.runes.striking"] = 0;
+      if (removeFromSource) updatesSource["system.runes.striking"] = targetRank;
     } else if (kind === "resilient" && isArmor) {
       updatesTarget["system.runes.resilient"] = r;
-      if (removeFromSource) updatesSource["system.runes.resilient"] = 0;
+      if (removeFromSource) updatesSource["system.runes.resilient"] = targetRank;
     } else if (kind === "reinforcing" && isShield) {
       updatesTarget["system.runes.reinforcing"] = r;
-      if (removeFromSource) updatesSource["system.runes.reinforcing"] = 0;
+      if (removeFromSource) updatesSource["system.runes.reinforcing"] = targetRank;
     } else {
       ui.notifications?.warn?.("This fundamental rune cannot be transferred between these items.");
       return false;
@@ -672,24 +673,47 @@ const executeSingleRuneTransfer = async ({ source, target, choice, removeFromSou
     const maxSlots = getPropertyRuneSlotsTransfer(target);
     const sourceProps = Array.isArray(sourceRunes.property) ? [...sourceRunes.property] : [];
     const targetProps = Array.isArray(targetRunes.property) ? [...targetRunes.property] : [];
+    const familySlug = normalizePropertyRuneFamilySlug(slug);
+    const targetFamilyIndex = targetProps.findIndex(
+      (prop) => normalizePropertyRuneFamilySlug(prop) === familySlug
+    );
+    const targetExistingSlug = targetFamilyIndex !== -1 ? targetProps[targetFamilyIndex] : null;
+    let updatedTargetProps = [...targetProps];
 
-    if (!targetProps.includes(slug)) {
-      targetProps.push(slug);
+    if (targetExistingSlug) {
+      if (targetExistingSlug !== slug) {
+        updatedTargetProps[targetFamilyIndex] = slug;
+        updatedTargetProps = updatedTargetProps.filter(
+          (prop, index) => prop && (prop !== slug || index === targetFamilyIndex)
+        );
+      }
+    } else if (!updatedTargetProps.includes(slug)) {
+      updatedTargetProps.push(slug);
     }
 
-    if (maxSlots && targetProps.filter(Boolean).length > maxSlots) {
+    if (maxSlots && updatedTargetProps.filter(Boolean).length > maxSlots) {
       ui.notifications?.warn?.("Target item has no available property rune slots.");
       return false;
     }
 
-    updatesTarget["system.runes.property"] = targetProps;
+    updatesTarget["system.runes.property"] = updatedTargetProps;
 
     if (removeFromSource) {
       const idx = sourceProps.indexOf(slug);
       if (idx !== -1) {
-        sourceProps.splice(idx, 1);
-        updatesSource["system.runes.property"] = sourceProps;
+        if (targetExistingSlug && targetExistingSlug !== slug && !sourceProps.includes(targetExistingSlug)) {
+          sourceProps.splice(idx, 1, targetExistingSlug);
+        } else {
+          sourceProps.splice(idx, 1);
+        }
+      } else if (
+        targetExistingSlug &&
+        targetExistingSlug !== slug &&
+        !sourceProps.includes(targetExistingSlug)
+      ) {
+        sourceProps.push(targetExistingSlug);
       }
+      updatesSource["system.runes.property"] = sourceProps;
     }
   } else {
     ui.notifications?.warn?.("Unknown rune type to transfer.");
