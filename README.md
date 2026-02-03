@@ -1,30 +1,40 @@
 # PF2e Rune Manager
 
-## Kurzbeschreibung
-PF2e Rune Manager ist ein Foundry-VTT-Modul für das Pathfinder-2e-System, das die Grundlage für eine zentralisierte Runenverwaltung in Charakterbögen schafft. Aktuell ergänzt es in der Gegenstandsliste des PF2e-Charakterbogens einen eigenen Aktions-Button, der künftig das Anbringen und Verwalten von Runen vereinfachen soll.
+## Overview
+PF2e Rune Manager is a Foundry VTT module for the Pathfinder Second Edition (PF2e) system. It adds rune-management helpers to PF2e actor sheets, starting with an “Attach runes” action entry in item lists and a placeholder dialog that will evolve into a full management workflow.
+
+## Features
+- Adds an **Attach runes** action button to the item list on PF2e character sheets.
+- Provides a placeholder dialog as the foundation for upcoming rune-management workflows.
+- Includes optional settings for consuming rune items after they are applied.
+- Ships with English and German localization files.
 
 ## Installation
-Es gibt zwei gängige Wege zur Installation in Foundry VTT:
+Install the module using one of the following options.
 
-### 1) Manifest-URL
-Wenn eine Manifest-URL bereitgestellt wird, kann das Modul direkt über **Module installieren** in Foundry VTT eingebunden werden.
+### Manifest URL
+1. In Foundry VTT, go to **Add-on Modules** and choose **Install Module**.
+2. Paste the manifest URL below and click **Install**.
 
-> **Manifest-URL:** (noch nicht veröffentlicht)
+```
+https://raw.githubusercontent.com/Kazgul1987/PF2e-Rune-Manager/main/module.json
+```
 
-### 2) Lokale Installation (Ordnerpfad)
-1. Lade dieses Repository herunter oder klone es.
-2. Kopiere den Ordner in den Foundry-Datenpfad unter `Data/modules/`.
-3. Stelle sicher, dass der Modulordner eindeutig ist, z. B. `PF2e-Rune-Manager`.
-4. Starte Foundry VTT neu und aktiviere das Modul in deinem Spiel.
+### Manual Installation
+1. Download the latest release from the GitHub releases page.
+2. Extract the archive into your Foundry data directory under `Data/modules/pf2e-rune-manager`.
+3. Restart Foundry VTT and enable **PF2e Rune Manager** in your world.
 
-## Nutzung & Features
-- Fügt in der Gegenstandsliste eines PF2e-Charakterbogens einen Aktions-Button **„Runen anbringen“** hinzu.
-- Der Button ist als Einstiegspunkt für eine spätere Rune-Verwaltung vorgesehen.
-- Aktuell protokolliert der Klick lediglich Basisinformationen (Actor & Item-ID) für spätere Erweiterungen.
+## Usage
+1. Open a PF2e character sheet.
+2. Locate the item list and click **Attach runes**.
+3. Review the placeholder dialog (future updates will extend the workflow for applying runes).
 
-## Kompatibilität
-- Entwickelt für das **Pathfinder 2e**-System in Foundry VTT.
-- Konkrete Versionen werden nach dem ersten Release ergänzt.
+## Configuration
+- **Consume rune on apply**: When enabled, rune items are removed after being applied to a target item. Toggle this in the module settings to match your table’s preferred workflow.
 
-## Beispiele / Screenshots
-Derzeit liegen keine Screenshots oder Konfigurationsbeispiele im Repository vor. Sobald UI-Dialoge ergänzt werden, folgen hier Bilder.
+## Contributing
+Issues, feature requests, and pull requests are welcome. Please use the GitHub issue tracker to report bugs or suggest improvements, and include Foundry VTT + PF2e system versions when possible.
+
+## Support
+For help or questions, open a GitHub issue in this repository. Community feedback helps prioritize new rune-management features.
