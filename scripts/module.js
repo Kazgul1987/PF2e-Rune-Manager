@@ -36,6 +36,7 @@ const getDCForRuneLevel = (level) => {
 
 const FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS = new Set([
   "anarchic",
+  "astral",
   "axiomatic",
   "bane",
   "brilliant",
@@ -46,6 +47,7 @@ const FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS = new Set([
   "flaming",
   "frost",
   "ghost-touch",
+  "greater-astral",
   "holy",
   "keen",
   "merciful",
