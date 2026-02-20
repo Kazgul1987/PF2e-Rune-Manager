@@ -666,7 +666,19 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       return true;
     }
 
-    ui.notifications?.warn?.("PF2e rune data unavailable.");
+    DBG("applyPropertyRune fallback-miss", {
+      targetType: targetItem?.type,
+      rune: runeItem?.name,
+      runeSlug,
+      usage,
+      fallbackSupportsWeaponSlug:
+        targetItem?.type === "weapon" && FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS.has(runeSlug),
+      fallbackSupportsArmorUsage:
+        targetItem?.type === "armor" && usage.startsWith("etched-onto-armor"),
+    });
+    ui.notifications?.warn?.(
+      `PF2e rune data unavailable (fallback active): rune "${runeItem?.name ?? "Unknown"}" (slug "${runeSlug || "unknown"}") is not supported by fallback for ${targetItem?.type ?? "this item"}.`
+    );
     return false;
   }
 
