@@ -787,10 +787,46 @@ const applyPropertyRune = async (runeItem, targetItem) => {
   return false;
 };
 
-const buildRuneTargetOptions = (actor, rune) => {
-  const actorItems = actor?.items ?? [];
-  return actorItems.filter((item) => isRuneCompatible(rune, item));
+const getAttachTargetActors = (actor) => {
+  if (!actor) return [];
+
+  const partyActor = getActivePartyActor();
+  const partyMemberIds = new Set(
+    (Array.isArray(partyActor?.members) ? partyActor.members : [])
+      .map((member) => member?.id ?? member?.actor?.id ?? member?.actorId)
+      .filter(Boolean)
+  );
+
+  return game.actors.filter(
+    (candidate) => candidate && (candidate.id === actor.id || partyMemberIds.has(candidate.id))
+  );
 };
+
+const buildRuneTargetOptions = (actor, rune) =>
+  getAttachTargetActors(actor).flatMap((candidateActor) =>
+    (candidateActor?.items ?? [])
+      .filter((item) => isRuneCompatible(rune, item))
+      .map((item) => ({
+        targetActorId: candidateActor.id,
+        targetActorName: candidateActor.name,
+        targetItemId: item.id,
+        targetItemName: item.name,
+      }))
+  );
+
+const groupAttachTargetsByActor = (targets) =>
+  targets.reduce((groups, target) => {
+    const actorId = target.targetActorId;
+    if (!groups[actorId]) {
+      groups[actorId] = {
+        actorId,
+        actorName: target.targetActorName,
+        items: [],
+      };
+    }
+    groups[actorId].items.push(target);
+    return groups;
+  }, {});
 
 const handleAttachRunesClick = (event) => {
   const appId = event.currentTarget.closest(".app")?.dataset?.appid;
@@ -819,14 +855,28 @@ const handleAttachRunesClick = (event) => {
     return;
   }
 
+  const groupedTargets = groupAttachTargetsByActor(options);
+  const actorEntries = Object.values(groupedTargets);
+  const initialActorId = actorEntries[0]?.actorId ?? "";
+  const actorOptionsHtml = actorEntries
+    .map((entry) => `<option value="${entry.actorId}">${entry.actorName}</option>`)
+    .join("");
+  const targetItemOptionsHtml = (groupedTargets[initialActorId]?.items ?? [])
+    .map((entry) => `<option value="${entry.targetItemId}">${entry.targetItemName}</option>`)
+    .join("");
+
   const dialogContent = `
     <form>
       <div class="form-group">
+        <label>Select target actor</label>
+        <select name="rune-target-actor">
+          ${actorOptionsHtml}
+        </select>
+      </div>
+      <div class="form-group">
         <label>Select target</label>
-        <select name="rune-target">
-          ${options
-            .map((item) => `<option value="${item.id}">${item.name}</option>`)
-            .join("")}
+        <select name="rune-target-item">
+          ${targetItemOptionsHtml}
         </select>
       </div>
       <div class="form-group">
@@ -847,16 +897,18 @@ const handleAttachRunesClick = (event) => {
       confirm: {
         label: "Confirm",
         callback: (dialogHtml) => {
-          const targetId = dialogHtml.find("select[name='rune-target']").val();
+          const targetActorId = dialogHtml.find("select[name='rune-target-actor']").val();
+          const targetItemId = dialogHtml.find("select[name='rune-target-item']").val();
           const consumeRune = dialogHtml
             .find("input[name='consume-rune']")
             .prop("checked");
-          if (!targetId) return;
+          if (!targetActorId || !targetItemId) return;
 
           Hooks.callAll("pf2eRuneManagerAttachRune", {
             actor,
             runeId: itemId,
-            targetId,
+            targetActorId,
+            targetItemId,
             consumeRune,
           });
         },
@@ -864,7 +916,29 @@ const handleAttachRunesClick = (event) => {
       cancel: { label: "Cancel" },
     },
     default: "confirm",
-  }).render(true);
+  });
+
+  dialog.render(true);
+  const dialogElement = dialog.element;
+  const actorSelect = dialogElement?.find("select[name='rune-target-actor']");
+  const itemSelect = dialogElement?.find("select[name='rune-target-item']");
+
+  const refreshTargetItems = () => {
+    const selectedActorId = actorSelect?.val();
+    const actorTargets = groupedTargets[String(selectedActorId)]?.items ?? [];
+    itemSelect?.empty();
+    actorTargets.forEach((targetEntry) => {
+      itemSelect?.append(
+        `<option value="${targetEntry.targetItemId}">${targetEntry.targetItemName}</option>`
+      );
+    });
+  };
+
+  actorSelect?.off("change.pf2eRuneManagerAttachTarget").on(
+    "change.pf2eRuneManagerAttachTarget",
+    refreshTargetItems
+  );
+  refreshTargetItems();
 };
 
 const renderActorSheetHook = (app, html) => {
@@ -901,9 +975,10 @@ Hooks.once("ready", () => {
     .on(`click${CLICK_NAMESPACE}`, ATTACH_RUNES_SELECTOR, handleAttachRunesClick);
 });
 
-Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetId, consumeRune }) => {
+Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetActorId, targetItemId, consumeRune }) => {
   const runeItem = actor?.items?.get(runeId);
-  const targetItem = actor?.items?.get(targetId);
+  const targetActor = game.actors?.get?.(targetActorId) ?? actor;
+  const targetItem = targetActor?.items?.get?.(targetItemId);
 
   DBG("attach", { rune: runeItem?.name, target: targetItem?.name });
 
