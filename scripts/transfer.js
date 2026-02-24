@@ -733,6 +733,175 @@ const executeSingleRuneTransfer = async ({ source, target, choice, removeFromSou
   }
 };
 
+const getRuneCategoryForSwap = (rune) => (rune?.type === "fundamental" ? "fundamental" : "property");
+
+const cloneRuneStateForSwap = (item) => foundry.utils.duplicate(item?.system?.runes ?? {});
+
+const applyRuneToStateForSwap = (runesState, rune) => {
+  if (rune.type === "fundamental") {
+    runesState[rune.kind] = Number(rune.rank ?? 0);
+    return;
+  }
+
+  const propRunes = Array.isArray(runesState.property) ? [...runesState.property] : [];
+  const incomingSlug = rune.slug;
+  const familySlug = normalizePropertyRuneFamilySlug(incomingSlug);
+  const familyIndex = propRunes.findIndex(
+    (prop) => normalizePropertyRuneFamilySlug(prop) === familySlug
+  );
+
+  if (familyIndex !== -1) {
+    propRunes[familyIndex] = incomingSlug;
+  } else {
+    propRunes.push(incomingSlug);
+  }
+
+  runesState.property = propRunes.filter(Boolean);
+};
+
+const ensureSwapSlotRules = ({ item, incomingRune, updatedRunes }) => {
+  if (incomingRune.type !== "property") return true;
+  const maxSlots = getPropertyRuneSlotsTransfer(item);
+  const propertyCount = (Array.isArray(updatedRunes.property) ? updatedRunes.property : []).filter(Boolean)
+    .length;
+
+  if (maxSlots && propertyCount > maxSlots) {
+    ui.notifications?.warn?.(`Target item has no available property rune slots: ${item.name}.`);
+    return false;
+  }
+
+  return true;
+};
+
+const executeRuneSwap = async ({ itemA, itemB, runeA, runeB }) => {
+  const runesA = cloneRuneStateForSwap(itemA);
+  const runesB = cloneRuneStateForSwap(itemB);
+
+  applyRuneToStateForSwap(runesA, runeB);
+  applyRuneToStateForSwap(runesB, runeA);
+
+  if (!ensureSwapSlotRules({ item: itemA, incomingRune: runeB, updatedRunes: runesA })) return false;
+  if (!ensureSwapSlotRules({ item: itemB, incomingRune: runeA, updatedRunes: runesB })) return false;
+
+  const parentActor = itemA?.actor;
+  if (parentActor && parentActor === itemB?.actor) {
+    await parentActor.updateEmbeddedDocuments("Item", [
+      { _id: itemA.id, "system.runes": runesA },
+      { _id: itemB.id, "system.runes": runesB },
+    ]);
+  } else {
+    await Promise.all([
+      itemA.update({ "system.runes": runesA }),
+      itemB.update({ "system.runes": runesB }),
+    ]);
+  }
+
+  return true;
+};
+
+const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
+  const buildTargetRuneOptions = (targetId) => {
+    const target = actor.items.get(targetId);
+    const choices = target ? buildRuneChoices(target) : [];
+    return choices
+      .map((choice) => `<option value="${choice.id}">${choice.label}</option>`)
+      .join("");
+  };
+
+  const runeOptionsA = runeChoicesA
+    .map((choice) => `<option value="${choice.id}">${choice.label}</option>`)
+    .join("");
+  const firstTargetId = targets[0]?.id ?? "";
+  const initialRuneOptionsB = buildTargetRuneOptions(firstTargetId);
+
+  const content = `
+    <form>
+      <div class="form-group">
+        <label>Quelle (Item A)</label>
+        <div class="form-fields"><span>${itemA.name}</span></div>
+      </div>
+      <div class="form-group">
+        <label>Ziel (Item B)</label>
+        <select name="item-b">
+          ${targets.map((item) => `<option value="${item.id}">${item.name}</option>`).join("")}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Rune A (von Item A)</label>
+        <select name="rune-a">
+          ${runeOptionsA}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Rune B (von Item B)</label>
+        <select name="rune-b">
+          ${initialRuneOptionsB}
+        </select>
+      </div>
+    </form>
+  `;
+
+  new Dialog(
+    {
+      title: "Runen tauschen",
+      content,
+      render: (html) => {
+        const refreshRunesB = () => {
+          const targetId = html.find("select[name='item-b']").val();
+          html.find("select[name='rune-b']").html(buildTargetRuneOptions(targetId));
+        };
+        html.find("select[name='item-b']").on("change", refreshRunesB);
+      },
+      buttons: {
+        confirm: {
+          label: "Confirm",
+          callback: async (html) => {
+            const itemBId = html.find("select[name='item-b']").val();
+            const runeAId = html.find("select[name='rune-a']").val();
+            const runeBId = html.find("select[name='rune-b']").val();
+            const itemB = actor.items.get(itemBId);
+            if (!itemB) {
+              ui.notifications?.warn?.("Ziel-Item konnte nicht gefunden werden.");
+              return;
+            }
+
+            const runeA = runeChoicesA.find((choice) => choice.id === runeAId);
+            const runeChoicesB = buildRuneChoices(itemB);
+            const runeB = runeChoicesB.find((choice) => choice.id === runeBId);
+
+            if (!runeA || !runeB) {
+              ui.notifications?.warn?.("Beide ausgewählten Runen müssen existieren.");
+              return;
+            }
+
+            const categoryA = getRuneCategoryForSwap(runeA);
+            const categoryB = getRuneCategoryForSwap(runeB);
+            if (categoryA !== categoryB) {
+              ui.notifications?.warn?.("Beide Runen müssen die gleiche Kategorie haben.");
+              return;
+            }
+
+            if (categoryA === "fundamental" && runeA.kind !== runeB.kind) {
+              ui.notifications?.warn?.(
+                "Fundamental-Runen müssen beim Tausch den gleichen Subtyp haben (potency/striking/resilient/reinforcing)."
+              );
+              return;
+            }
+
+            const ok = await executeRuneSwap({ itemA, itemB, runeA, runeB });
+            if (ok) {
+              ui.notifications?.info?.("Runen wurden erfolgreich getauscht.");
+            }
+          },
+        },
+        cancel: { label: "Cancel" },
+      },
+      default: "confirm",
+    },
+    { width: 650 }
+  ).render(true);
+};
+
 /**
  * Kompletten Ablauf für eine Rune:
  * - ggf. Kosten einziehen (Vendor / Crafting Success)
@@ -987,6 +1156,10 @@ const handleTransferRunesClick = (event) => {
           },
         },
         cancel: { label: "Cancel" },
+        swap: {
+          label: "Swap Dialog",
+          callback: () => openRuneSwapDialog({ actor, itemA: sourceItem, targets, runeChoicesA: runeChoices }),
+        },
       },
       default: "confirm",
     },
