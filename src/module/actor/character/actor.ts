@@ -37,6 +37,7 @@ type RuneManagerUser = {
 type RuneManagerGame = {
   user?: RuneManagerUser;
   actors?: {
+    get: (id: string) => RuneManagerActor | undefined;
     filter: (predicate: (actor: RuneManagerActor) => boolean) => RuneManagerActor[];
   };
 };
@@ -378,24 +379,46 @@ export class CharacterActor {
               return;
             }
 
-            const selectedTarget = eligibleTargets.find(
-              (target) => `${target.actorId}:${target.itemId}` === selectedValue
-            );
-            if (!selectedTarget) {
-              ui.notifications?.warn("Das Ziel-Item konnte nicht gefunden werden.");
+            let selectedTarget: { actorId?: string; itemId?: string };
+            try {
+              selectedTarget = JSON.parse(selectedValue) as {
+                actorId?: string;
+                itemId?: string;
+              };
+            } catch {
+              ui.notifications?.error("Die Zielauswahl ist ungültig.");
               return;
             }
 
-            const targetActor = this.getCandidateTargetActors().find(
-              (actor) => actor.id === selectedTarget.actorId
-            );
-            const targetItem = targetActor?.items.get(selectedTarget.itemId);
-            if (!targetActor || !targetItem) {
-              ui.notifications?.warn("Das Ziel-Item konnte nicht gefunden werden.");
+            if (!selectedTarget.actorId) {
+              ui.notifications?.error("Der Ziel-Actor konnte nicht bestimmt werden.");
               return;
             }
 
-            const success = await this.attachRuneToItem(runeItem, targetItem);
+            if (!selectedTarget.itemId) {
+              ui.notifications?.error("Das Ziel-Item konnte nicht bestimmt werden.");
+              return;
+            }
+
+            const targetActor = (game as RuneManagerGame).actors?.get(
+              selectedTarget.actorId
+            );
+            if (!targetActor) {
+              ui.notifications?.error(
+                `Der Ziel-Actor mit ID ${selectedTarget.actorId} wurde nicht gefunden.`
+              );
+              return;
+            }
+
+            const targetItem = targetActor.items.get(selectedTarget.itemId);
+            if (!targetItem) {
+              ui.notifications?.error(
+                `Das Ziel-Item mit ID ${selectedTarget.itemId} wurde auf ${targetActor.name ?? "dem Actor"} nicht gefunden.`
+              );
+              return;
+            }
+
+            const success = await this.attachRuneToItem(runeItem, targetItem, targetActor);
             if (success) {
               targetActor.sheet?.render(true);
             }
@@ -487,12 +510,27 @@ export class CharacterActor {
   }
 
   private renderRuneTargetDialog(items: RuneTargetSelection[]): string {
-    const options = items
-      .map(
-        (item) =>
-          `<label class="radio"><input type="radio" name="rune-target" value="${item.actorId}:${item.itemId}"> ${item.actorName} – ${item.itemName}</label>`
-      )
-      .join("<br>");
+    const groupedItems = items.reduce<Map<string, RuneTargetSelection[]>>((groups, item) => {
+      const current = groups.get(item.actorId) ?? [];
+      current.push(item);
+      groups.set(item.actorId, current);
+      return groups;
+    }, new Map());
+
+    const options = Array.from(groupedItems.values())
+      .map((actorItems) => {
+        const actorName = actorItems[0]?.actorName ?? "Unbekannter Charakter";
+        const actorOptions = actorItems
+          .map((item) => {
+            const value = JSON.stringify({ actorId: item.actorId, itemId: item.itemId })
+              .replace(/"/g, "&quot;");
+            return `<label class="radio"><input type="radio" name="rune-target" value="${value}"> ${item.itemName}</label>`;
+          })
+          .join("<br>");
+
+        return `<fieldset class="form-group"><legend>${actorName}</legend>${actorOptions}</fieldset>`;
+      })
+      .join("");
 
     return `<form><div class="form-group">${options}</div></form>`;
   }
@@ -534,7 +572,8 @@ export class CharacterActor {
 
   private async attachRuneToItem(
     runeItem: RuneManagerItem,
-    targetItem: RuneManagerItem
+    targetItem: RuneManagerItem,
+    targetActor: RuneManagerActor
   ): Promise<boolean> {
     if (!this.isEquipmentItem(targetItem)) {
       ui.notifications?.error(
@@ -634,7 +673,9 @@ export class CharacterActor {
     updateData["name"] = newName;
 
     await targetItem.update(updateData);
-    ui.notifications?.info(`Rune ${runeItem.name} wurde an ${targetItem.name} angebracht.`);
+    ui.notifications?.info(
+      `Rune ${runeItem.name} wurde an ${targetItem.name} von Actor ${targetActor.name ?? "Unbekannter Charakter"} angebracht.`
+    );
     return true;
   }
 
