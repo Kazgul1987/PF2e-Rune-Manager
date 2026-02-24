@@ -283,6 +283,10 @@ const getActorGoldValue = (actor) => {
 /** Preis (GP) -> 10% Kosten in GP */
 const getRuneTransferCostGP = (priceGP) => (Number(priceGP) || 0) * 0.1;
 
+/** Swap-Kosten: 10% der teureren Rune */
+const getRuneSwapCostGP = (sourcePrice, targetPrice) =>
+  Math.max(Number(sourcePrice) || 0, Number(targetPrice) || 0) * 0.1;
+
 /** 10% Kosten in GP -> Kupfer für removeCoins(byValue) */
 const getRuneTransferCostCP = (priceGP) => {
   // priceGP * 100 (cp/gp) * 0.1 (10%) = priceGP * 10
@@ -799,6 +803,50 @@ const executeRuneSwap = async ({ itemA, itemB, runeA, runeB }) => {
   return true;
 };
 
+/**
+ * Kompletten Ablauf für Runen-Swap:
+ * - Preise beider Runen bestimmen
+ * - Kosten anhand der teureren Rune berechnen
+ * - Zahlung durchführen
+ * - Beide Runen atomar tauschen
+ */
+const performRuneSwapWithCost = async ({ actor, partyActor, itemA, itemB, runeA, runeB, paySource }) => {
+  const sourceRunePriceGP = Number(runeA?.price ?? 0);
+  const targetRunePriceGP = Number(runeB?.price ?? 0);
+  const expensiveRunePriceGP = Math.max(sourceRunePriceGP, targetRunePriceGP);
+  const swapCostGP = getRuneSwapCostGP(sourceRunePriceGP, targetRunePriceGP);
+
+  DBG_TRANSFER("performRuneSwapWithCost", {
+    itemA: itemA?.name,
+    itemB: itemB?.name,
+    runeA,
+    runeB,
+    sourceRunePriceGP,
+    targetRunePriceGP,
+    expensiveRunePriceGP,
+    swapCostGP,
+    paySource,
+  });
+
+  const payment = await payRuneTransferCost(
+    actor,
+    partyActor,
+    expensiveRunePriceGP,
+    paySource || "actor"
+  );
+  if (!payment.success) return false;
+
+  const ok = await executeRuneSwap({ itemA, itemB, runeA, runeB });
+  if (!ok) return false;
+
+  ui.notifications?.info?.(
+    `Runen wurden erfolgreich getauscht. Kosten: ${payment.costGP.toFixed(
+      2
+    )} gp (10% der teureren Rune).`
+  );
+  return true;
+};
+
 const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
   const buildTargetRuneOptions = (targetId) => {
     const target = actor.items.get(targetId);
@@ -813,6 +861,9 @@ const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
     .join("");
   const firstTargetId = targets[0]?.id ?? "";
   const initialRuneOptionsB = buildTargetRuneOptions(firstTargetId);
+  const partyActor = getActivePartyActor();
+  const actorGP = getActorGoldValue(actor);
+  const partyGP = partyActor ? getActorGoldValue(partyActor) : 0;
 
   const content = `
     <form>
@@ -838,6 +889,20 @@ const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
           ${initialRuneOptionsB}
         </select>
       </div>
+      <div class="form-group">
+        <label>Funds</label>
+        <div class="form-fields">
+          <p>Actor cash: ${actorGP.toFixed(2)} gp</p>
+          <p>Party stash: ${partyGP.toFixed(2)} gp</p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Zahlungsquelle</label>
+        <div class="form-fields">
+          <label><input type="radio" name="pay-source" value="actor" checked /> Actor</label>
+          <label><input type="radio" name="pay-source" value="party" /> Party stash</label>
+        </div>
+      </div>
     </form>
   `;
 
@@ -859,6 +924,7 @@ const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
             const itemBId = html.find("select[name='item-b']").val();
             const runeAId = html.find("select[name='rune-a']").val();
             const runeBId = html.find("select[name='rune-b']").val();
+            const paySource = html.find("input[name='pay-source']:checked").val() || "actor";
             const itemB = actor.items.get(itemBId);
             if (!itemB) {
               ui.notifications?.warn?.("Ziel-Item konnte nicht gefunden werden.");
@@ -888,10 +954,15 @@ const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
               return;
             }
 
-            const ok = await executeRuneSwap({ itemA, itemB, runeA, runeB });
-            if (ok) {
-              ui.notifications?.info?.("Runen wurden erfolgreich getauscht.");
-            }
+            await performRuneSwapWithCost({
+              actor,
+              partyActor,
+              itemA,
+              itemB,
+              runeA,
+              runeB,
+              paySource,
+            });
           },
         },
         cancel: { label: "Cancel" },
