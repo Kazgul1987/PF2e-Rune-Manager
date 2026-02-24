@@ -17,6 +17,10 @@ type RuneManagerActor = {
     get: (id: string) => RuneManagerItem | undefined;
     filter: (predicate: (item: RuneManagerItem) => boolean) => RuneManagerItem[];
   };
+  deleteEmbeddedDocuments?: (
+    embeddedName: string,
+    ids: string[]
+  ) => Promise<unknown>;
   sheet?: {
     render: (force?: boolean) => void;
   };
@@ -36,11 +40,16 @@ type RuneManagerUser = {
 
 type RuneManagerGame = {
   user?: RuneManagerUser;
+  settings?: {
+    get: (moduleId: string, key: string) => unknown;
+  };
   actors?: {
     get: (id: string) => RuneManagerActor | undefined;
     filter: (predicate: (actor: RuneManagerActor) => boolean) => RuneManagerActor[];
   };
 };
+
+const MODULE_ID = "pf2e-rune-manager";
 
 type RuneTargetType = "weapon" | "armor" | "shield";
 
@@ -418,8 +427,14 @@ export class CharacterActor {
               return;
             }
 
-            const success = await this.attachRuneToItem(runeItem, targetItem, targetActor);
+            const success = await this.attachRuneToItem(
+              runeItem,
+              targetItem,
+              this.actor,
+              targetActor
+            );
             if (success) {
+              this.actor.sheet?.render(true);
               targetActor.sheet?.render(true);
             }
           },
@@ -573,8 +588,20 @@ export class CharacterActor {
   private async attachRuneToItem(
     runeItem: RuneManagerItem,
     targetItem: RuneManagerItem,
+    sourceActor: RuneManagerActor,
     targetActor: RuneManagerActor
   ): Promise<boolean> {
+    const gameData = game as RuneManagerGame;
+    if (!this.userCanManageActor(sourceActor, gameData.user)) {
+      ui.notifications?.error("Du hast keine Berechtigung, diese Rune zu verwenden.");
+      return false;
+    }
+
+    if (!this.userCanManageActor(targetActor, gameData.user)) {
+      ui.notifications?.error("Du hast keine Berechtigung, dieses Ziel-Item zu verändern.");
+      return false;
+    }
+
     if (!this.isEquipmentItem(targetItem)) {
       ui.notifications?.error(
         "Runen können nur an Waffen, Rüstungen oder Schilden angebracht werden."
@@ -673,10 +700,33 @@ export class CharacterActor {
     updateData["name"] = newName;
 
     await targetItem.update(updateData);
+
+    if (this.shouldConsumeRuneOnApply()) {
+      if (!runeItem.id) {
+        ui.notifications?.error("Die Rune konnte nicht aus dem Quellinventar entfernt werden.");
+        return false;
+      }
+
+      if (typeof sourceActor.deleteEmbeddedDocuments !== "function") {
+        ui.notifications?.error("Das Quellinventar kann nicht aktualisiert werden.");
+        return false;
+      }
+
+      await sourceActor.deleteEmbeddedDocuments("Item", [runeItem.id]);
+    }
+
     ui.notifications?.info(
       `Rune ${runeItem.name} wurde an ${targetItem.name} von Actor ${targetActor.name ?? "Unbekannter Charakter"} angebracht.`
     );
     return true;
+  }
+
+  private shouldConsumeRuneOnApply(): boolean {
+    const consumeSetting = (game as RuneManagerGame).settings?.get(
+      MODULE_ID,
+      "consumeRuneOnApply"
+    );
+    return consumeSetting === true;
   }
 
   private getBaseItemName(targetItem: RuneManagerItem): string {
