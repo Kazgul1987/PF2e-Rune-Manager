@@ -1190,6 +1190,20 @@ const buildRuneTransferTargets = (actor, sourceItem) => {
   );
 };
 
+const groupTransferTargetsByActor = (targets) =>
+  targets.reduce((groups, target) => {
+    const actorId = target.targetActorId;
+    if (!groups[actorId]) {
+      groups[actorId] = {
+        actorId,
+        actorName: target.targetActorName,
+        items: [],
+      };
+    }
+    groups[actorId].items.push(target);
+    return groups;
+  }, {});
+
 // --- UI / Hooks ---
 
 /** Klick auf das Transfer-Icon in der Inventarliste */
@@ -1232,6 +1246,16 @@ const handleTransferRunesClick = (event) => {
     )
     .join("");
 
+  const groupedTargets = groupTransferTargetsByActor(targets);
+  const actorEntries = Object.values(groupedTargets);
+  const initialActorId = actorEntries[0]?.actorId ?? "";
+  const actorOptionsHtml = actorEntries
+    .map((entry) => `<option value="${entry.actorId}">${entry.actorName}</option>`)
+    .join("");
+  const targetItemOptionsHtml = (groupedTargets[initialActorId]?.items ?? [])
+    .map((entry) => `<option value="${entry.targetItemId}">${entry.targetItemName}</option>`)
+    .join("");
+
   const dialogContent = `
     <form>
       <div class="form-group">
@@ -1242,9 +1266,16 @@ const handleTransferRunesClick = (event) => {
       </div>
 
       <div class="form-group">
-        <label>${t("dialog.targetActorItem")}</label>
-        <select name="target">
-          ${targets.map((i) => `<option value="${i.id}">${i.targetActorName} → ${i.targetItemName}</option>`).join("")}
+        <label>${t("dialog.targetActor")}</label>
+        <select name="target-actor">
+          ${actorOptionsHtml}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>${t("dialog.targetItem")}</label>
+        <select name="target-item">
+          ${targetItemOptionsHtml}
         </select>
       </div>
 
@@ -1289,7 +1320,7 @@ const handleTransferRunesClick = (event) => {
     </form>
   `;
 
-  new Dialog(
+  const dialog = new Dialog(
     {
       title: "Transfer Runes",
       content: dialogContent,
@@ -1297,16 +1328,14 @@ const handleTransferRunesClick = (event) => {
         confirm: {
           label: "Confirm",
           callback: async (html) => {
-            const targetValue = html.find("select[name='target']").val();
+            const targetActorId = html.find("select[name='target-actor']").val();
+            const targetItemId = html.find("select[name='target-item']").val();
             const runeId = html.find("select[name='rune-choice']").val();
             const method = html.find("input[name='method']:checked").val() || "crafting";
             const paySource = html.find("input[name='pay-source']:checked").val() || "source";
             const remove = html.find("input[name='remove']").prop("checked");
 
-            if (!targetValue || !runeId) return;
-
-            const [targetActorId, targetItemId] = String(targetValue).split(":");
-            if (!targetActorId || !targetItemId) {
+            if (!targetActorId || !targetItemId || !runeId) {
               ui.notifications?.warn?.(t("warnings.invalidTargetSelection"));
               return;
             }
@@ -1350,7 +1379,26 @@ const handleTransferRunesClick = (event) => {
       default: "confirm",
     },
     { width: 650 } // <-- größerer Dialog für bessere Lesbarkeit
-  ).render(true);
+  );
+
+  dialog.render(true);
+  const dialogElement = dialog.element;
+  const actorSelect = dialogElement?.find("select[name='target-actor']");
+  const itemSelect = dialogElement?.find("select[name='target-item']");
+
+  const refreshTargetItems = () => {
+    const selectedActorId = actorSelect?.val();
+    const actorTargets = groupedTargets[String(selectedActorId)]?.items ?? [];
+    itemSelect?.empty();
+    actorTargets.forEach((targetEntry) => {
+      itemSelect?.append(
+        `<option value="${targetEntry.targetItemId}">${targetEntry.targetItemName}</option>`
+      );
+    });
+  };
+
+  actorSelect?.off("change.pf2eRuneManagerTarget").on("change.pf2eRuneManagerTarget", refreshTargetItems);
+  refreshTargetItems();
 };
 
 /** Icon in die Actor-Sheet-Inventarliste einbauen */

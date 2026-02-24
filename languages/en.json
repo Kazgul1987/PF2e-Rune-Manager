@@ -11,7 +11,9 @@
   },
   "pf2e-rune-manager": {
     "dialog": {
-      "targetActorItem": "Target actor + item"
+      "targetActorItem": "Target actor + item",
+      "targetActor": "Target actor",
+      "targetItem": "Target item"
     },
     "warnings": {
       "noValidTargets": "No valid rune transfer targets found.",
