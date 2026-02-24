@@ -380,49 +380,37 @@ export class CharacterActor {
         confirm: {
           label: "Anbringen",
           callback: async (html) => {
-            const selectedValue = (html as JQuery)
-              .find('input[name="rune-target"]:checked')
+            const selectedActorId = (html as JQuery)
+              .find('select[name="rune-target-actor"]')
               .val() as string | undefined;
-            if (!selectedValue) {
+            const selectedItemId = (html as JQuery)
+              .find('select[name="rune-target-item"]')
+              .val() as string | undefined;
+
+            if (!selectedActorId) {
+              ui.notifications?.warn("Bitte wähle einen Ziel-Actor aus.");
+              return;
+            }
+
+            if (!selectedItemId) {
               ui.notifications?.warn("Bitte wähle ein Ziel-Item aus.");
               return;
             }
 
-            let selectedTarget: { actorId?: string; itemId?: string };
-            try {
-              selectedTarget = JSON.parse(selectedValue) as {
-                actorId?: string;
-                itemId?: string;
-              };
-            } catch {
-              ui.notifications?.error("Die Zielauswahl ist ungültig.");
-              return;
-            }
-
-            if (!selectedTarget.actorId) {
-              ui.notifications?.error("Der Ziel-Actor konnte nicht bestimmt werden.");
-              return;
-            }
-
-            if (!selectedTarget.itemId) {
-              ui.notifications?.error("Das Ziel-Item konnte nicht bestimmt werden.");
-              return;
-            }
-
             const targetActor = (game as RuneManagerGame).actors?.get(
-              selectedTarget.actorId
+              selectedActorId
             );
             if (!targetActor) {
               ui.notifications?.error(
-                `Der Ziel-Actor mit ID ${selectedTarget.actorId} wurde nicht gefunden.`
+                `Der Ziel-Actor mit ID ${selectedActorId} wurde nicht gefunden.`
               );
               return;
             }
 
-            const targetItem = targetActor.items.get(selectedTarget.itemId);
+            const targetItem = targetActor.items.get(selectedItemId);
             if (!targetItem) {
               ui.notifications?.error(
-                `Das Ziel-Item mit ID ${selectedTarget.itemId} wurde auf ${targetActor.name ?? "dem Actor"} nicht gefunden.`
+                `Das Ziel-Item mit ID ${selectedItemId} wurde auf ${targetActor.name ?? "dem Actor"} nicht gefunden.`
               );
               return;
             }
@@ -447,6 +435,7 @@ export class CharacterActor {
     });
 
     dialog.render(true);
+    this.bindRuneTargetActorSelect(dialog, eligibleTargets);
   }
 
   private getCandidateTargetActors(): RuneManagerActor[] {
@@ -525,29 +514,96 @@ export class CharacterActor {
   }
 
   private renderRuneTargetDialog(items: RuneTargetSelection[]): string {
-    const groupedItems = items.reduce<Map<string, RuneTargetSelection[]>>((groups, item) => {
-      const current = groups.get(item.actorId) ?? [];
-      current.push(item);
+    const groupedItems = this.groupRuneTargetsByActor(items);
+    const actorOptions = groupedItems
+      .map(({ actorId, actorName }) => `<option value="${actorId}">${actorName}</option>`)
+      .join("");
+
+    const firstActorId = groupedItems[0]?.actorId ?? "";
+    const itemOptions = this.getRuneTargetItemOptionsForActor(groupedItems, firstActorId)
+      .map((item) => `<option value="${item.itemId}">${item.itemName}</option>`)
+      .join("");
+
+    return `
+      <form>
+        <div class="form-group">
+          <label>Ziel-Actor</label>
+          <select name="rune-target-actor">
+            ${actorOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Ziel-Item</label>
+          <select name="rune-target-item">
+            ${itemOptions}
+          </select>
+        </div>
+      </form>
+    `;
+  }
+
+  private groupRuneTargetsByActor(
+    items: RuneTargetSelection[]
+  ): Array<{ actorId: string; actorName: string; items: RuneTargetSelection[] }> {
+    const groupedItems = items.reduce<
+      Map<string, { actorId: string; actorName: string; items: RuneTargetSelection[] }>
+    >((groups, item) => {
+      const current = groups.get(item.actorId) ?? {
+        actorId: item.actorId,
+        actorName: item.actorName,
+        items: [],
+      };
+      current.items.push(item);
       groups.set(item.actorId, current);
       return groups;
     }, new Map());
 
-    const options = Array.from(groupedItems.values())
-      .map((actorItems) => {
-        const actorName = actorItems[0]?.actorName ?? "Unbekannter Charakter";
-        const actorOptions = actorItems
-          .map((item) => {
-            const value = JSON.stringify({ actorId: item.actorId, itemId: item.itemId })
-              .replace(/"/g, "&quot;");
-            return `<label class="radio"><input type="radio" name="rune-target" value="${value}"> ${item.itemName}</label>`;
-          })
-          .join("<br>");
+    return Array.from(groupedItems.values());
+  }
 
-        return `<fieldset class="form-group"><legend>${actorName}</legend>${actorOptions}</fieldset>`;
-      })
-      .join("");
+  private getRuneTargetItemOptionsForActor(
+    groupedItems: Array<{ actorId: string; actorName: string; items: RuneTargetSelection[] }>,
+    actorId: string
+  ): RuneTargetSelection[] {
+    return groupedItems.find((entry) => entry.actorId === actorId)?.items ?? [];
+  }
 
-    return `<form><div class="form-group">${options}</div></form>`;
+  private bindRuneTargetActorSelect(
+    dialog: Dialog,
+    items: RuneTargetSelection[]
+  ): void {
+    const groupedItems = this.groupRuneTargetsByActor(items);
+    const dialogElement = dialog.element;
+    if (!dialogElement || !dialogElement.length) {
+      return;
+    }
+
+    const actorSelect = dialogElement.find('select[name="rune-target-actor"]');
+    const itemSelect = dialogElement.find('select[name="rune-target-item"]');
+    if (!actorSelect.length || !itemSelect.length) {
+      return;
+    }
+
+    const updateItemOptions = () => {
+      const selectedActorId = actorSelect.val() as string | undefined;
+      const availableItems = this.getRuneTargetItemOptionsForActor(
+        groupedItems,
+        selectedActorId ?? ""
+      );
+
+      itemSelect.empty();
+      availableItems.forEach((targetItem) => {
+        itemSelect.append(
+          `<option value="${targetItem.itemId}">${targetItem.itemName}</option>`
+        );
+      });
+    };
+
+    actorSelect.off("change.pf2eRuneManagerAttach").on(
+      "change.pf2eRuneManagerAttach",
+      updateItemOptions
+    );
+    updateItemOptions();
   }
 
   private buildRunedItemName(
