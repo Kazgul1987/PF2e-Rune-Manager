@@ -4,6 +4,10 @@ const MODULE_ID = "pf2e-rune-manager";
 
 const TRANSFER_RUNES_SELECTOR = "a[data-action='transfer-runes']";
 const CLICK_NAMESPACE_TRANSFER = ".pf2eRuneManagerTransfer";
+const ALLOWED_TRANSFER_ITEM_TYPES = ["weapon", "armor", "shield"];
+
+const t = (key) => game.i18n?.localize?.(`${MODULE_ID}.${key}`) ?? key;
+const tf = (key, data = {}) => game.i18n?.format?.(`${MODULE_ID}.${key}`, data) ?? t(key);
 
 const DBG_TRANSFER = (...args) => console.log("[RuneManager Transfer DBG]", ...args);
 
@@ -577,53 +581,64 @@ const buildRuneChoices = (sourceItem) => {
  * Versucht, die 10%-Kosten einer Rune von Actor ODER Party abzuziehen,
  * je nach paySource: "actor" | "party".
  */
-const payRuneTransferCost = async (actor, partyActor, priceGP, paySource) => {
+const payRuneTransferCost = async (sourceActor, targetActor, partyActor, priceGP, paySource) => {
   const costCP = getRuneTransferCostCP(priceGP); // 10% in Kupfer
   if (costCP <= 0) {
     return { success: true, costGP: 0 };
   }
 
-  const actorCoins = actor?.inventory?.coins;
-  const partyCoins = partyActor?.inventory?.coins;
-
-  const actorCP = Number(actorCoins?.copperValue ?? 0);
-  const partyCP = Number(partyCoins?.copperValue ?? 0);
+  const sourceCP = Number(sourceActor?.inventory?.coins?.copperValue ?? 0);
+  const targetCP = Number(targetActor?.inventory?.coins?.copperValue ?? 0);
+  const partyCP = Number(partyActor?.inventory?.coins?.copperValue ?? 0);
 
   const costGP = costCP / 100;
 
   if (paySource === "party") {
     if (!partyActor) {
-      ui.notifications?.warn?.("No active party found to pay the rune transfer cost.");
+      ui.notifications?.warn?.(t("warnings.partyMissing"));
       return { success: false, costGP };
     }
     if (partyCP < costCP) {
       ui.notifications?.warn?.(
-        `Party stash does not have enough funds to pay rune transfer cost (${costGP.toFixed(
-          2
-        )} gp).`
+        `${tf("warnings.partyFundsInsufficient", { cost: costGP.toFixed(2) })}`
       );
       return { success: false, costGP };
     }
 
     const ok = await partyActor.inventory.removeCoins({ cp: costCP }, { byValue: true });
     if (!ok) {
-      ui.notifications?.warn?.("Could not remove coins from party stash.");
+      ui.notifications?.warn?.(t("warnings.partyFundsRemoveFailed"));
       return { success: false, costGP };
     }
     return { success: true, costGP };
   }
 
-  // Default / "actor"
-  if (actorCP < costCP) {
-    ui.notifications?.warn?.(
-      `Actor does not have enough funds to pay rune transfer cost (${costGP.toFixed(2)} gp).`
-    );
+  if (paySource === "target") {
+    if (!targetActor) {
+      ui.notifications?.warn?.(t("warnings.noTargetActorPayment"));
+      return { success: false, costGP };
+    }
+    if (targetCP < costCP) {
+      ui.notifications?.warn?.(tf("warnings.targetFundsInsufficient", { cost: costGP.toFixed(2) }));
+      return { success: false, costGP };
+    }
+
+    const ok = await targetActor.inventory.removeCoins({ cp: costCP }, { byValue: true });
+    if (!ok) {
+      ui.notifications?.warn?.(t("warnings.targetFundsRemoveFailed"));
+      return { success: false, costGP };
+    }
+    return { success: true, costGP };
+  }
+
+  if (sourceCP < costCP) {
+    ui.notifications?.warn?.(tf("warnings.sourceFundsInsufficient", { cost: costGP.toFixed(2) }));
     return { success: false, costGP };
   }
 
-  const ok = await actor.inventory.removeCoins({ cp: costCP }, { byValue: true });
+  const ok = await sourceActor.inventory.removeCoins({ cp: costCP }, { byValue: true });
   if (!ok) {
-    ui.notifications?.warn?.("Could not remove coins from actor.");
+    ui.notifications?.warn?.(t("warnings.sourceFundsRemoveFailed"));
     return { success: false, costGP };
   }
 
@@ -633,7 +648,14 @@ const payRuneTransferCost = async (actor, partyActor, priceGP, paySource) => {
 /**
  * Tatsächlicher Transfer einer EINZELNEN Rune vom Source-Item zum Target-Item
  */
-const executeSingleRuneTransfer = async ({ source, target, choice, removeFromSource }) => {
+const executeSingleRuneTransfer = async ({
+  sourceActor,
+  targetActor,
+  source,
+  target,
+  choice,
+  removeFromSource,
+}) => {
   const sourceRunes = foundry.utils.duplicate(source.system?.runes ?? {});
   const targetRunes = foundry.utils.duplicate(target.system?.runes ?? {});
 
@@ -724,17 +746,28 @@ const executeSingleRuneTransfer = async ({ source, target, choice, removeFromSou
     return false;
   }
 
+  const hasTargetUpdate = Object.keys(updatesTarget).length > 0;
+  const hasSourceUpdate = Object.keys(updatesSource).length > 0;
+
+  if (sourceActor && targetActor && sourceActor === targetActor && hasTargetUpdate && hasSourceUpdate) {
+    await sourceActor.updateEmbeddedDocuments("Item", [
+      { _id: source.id, ...updatesSource },
+      { _id: target.id, ...updatesTarget },
+    ]);
+    return true;
+  }
+
   const updatePromises = [];
-  if (Object.keys(updatesTarget).length) updatePromises.push(target.update(updatesTarget));
-  if (Object.keys(updatesSource).length) updatePromises.push(source.update(updatesSource));
+  if (hasTargetUpdate) updatePromises.push(target.update(updatesTarget));
+  if (hasSourceUpdate) updatePromises.push(source.update(updatesSource));
 
   if (updatePromises.length) {
     await Promise.all(updatePromises);
     return true;
-  } else {
-    ui.notifications?.info?.("No rune changes were necessary.");
-    return false;
   }
+
+  ui.notifications?.info?.("No rune changes were necessary.");
+  return false;
 };
 
 const getRuneCategoryForSwap = (rune) => (rune?.type === "fundamental" ? "fundamental" : "property");
@@ -859,9 +892,10 @@ const performRuneSwapWithCost = async ({ actor, partyActor, itemA, itemB, runeA,
 
   const payment = await payRuneTransferCost(
     actor,
+    itemB?.actor ?? actor,
     partyActor,
     expensiveRunePriceGP,
-    paySource || "actor"
+    paySource || "source"
   );
   if (!payment.success) return false;
 
@@ -921,14 +955,15 @@ const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
       <div class="form-group">
         <label>Funds</label>
         <div class="form-fields">
-          <p>Actor cash: ${actorGP.toFixed(2)} gp</p>
+          <p>Source actor cash: ${actorGP.toFixed(2)} gp</p>
           <p>Party stash: ${partyGP.toFixed(2)} gp</p>
         </div>
       </div>
       <div class="form-group">
         <label>Zahlungsquelle</label>
         <div class="form-fields">
-          <label><input type="radio" name="pay-source" value="actor" checked /> Actor</label>
+          <label><input type="radio" name="pay-source" value="source" checked /> Source actor</label>
+          <label><input type="radio" name="pay-source" value="target" /> Target actor</label>
           <label><input type="radio" name="pay-source" value="party" /> Party stash</label>
         </div>
       </div>
@@ -953,7 +988,7 @@ const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
             const itemBId = html.find("select[name='item-b']").val();
             const runeAId = html.find("select[name='rune-a']").val();
             const runeBId = html.find("select[name='rune-b']").val();
-            const paySource = html.find("input[name='pay-source']:checked").val() || "actor";
+            const paySource = html.find("input[name='pay-source']:checked").val() || "source";
             const itemB = actor.items.get(itemBId);
             if (!itemB) {
               ui.notifications?.warn?.("Ziel-Item konnte nicht gefunden werden.");
@@ -1008,7 +1043,8 @@ const openRuneSwapDialog = ({ actor, itemA, targets, runeChoicesA }) => {
  * - Rune von Source -> Target übertragen
  */
 const performRuneTransferWithCost = async ({
-  actor,
+  sourceActor,
+  targetActor,
   partyActor,
   source,
   target,
@@ -1038,10 +1074,17 @@ const performRuneTransferWithCost = async ({
 
   if (method === "vendor") {
     // Direkt bezahlen und übertragen
-    const payment = await payRuneTransferCost(actor, partyActor, diffPriceGP, paySource);
+    const payment = await payRuneTransferCost(sourceActor, targetActor, partyActor, diffPriceGP, paySource);
     if (!payment.success) return;
 
-    const ok = await executeSingleRuneTransfer({ source, target, choice, removeFromSource });
+    const ok = await executeSingleRuneTransfer({
+      sourceActor,
+      targetActor,
+      source,
+      target,
+      choice,
+      removeFromSource,
+    });
     if (ok) {
       ui.notifications?.info?.(
         `Rune transferred via vendor. Cost: ${payment.costGP.toFixed(
@@ -1054,19 +1097,21 @@ const performRuneTransferWithCost = async ({
 
   // --- Crafting: zuerst Chat-Eintrag mit Inline-Check, dann Ergebnis abfragen ---
   const runeLabel = choice.label ?? "Rune";
-  const speaker = ChatMessage.getSpeaker({ actor });
+  const speaker = ChatMessage.getSpeaker({ actor: sourceActor });
 
   const inlineCheck = `@Check[crafting|dc:${dc}|name:${runeLabel}]`;
   const content = `
     <p><strong>Rune Transfer (Crafting)</strong></p>
     <p><strong>Rune:</strong> ${runeLabel}</p>
+    <p><strong>Source Actor:</strong> ${sourceActor?.name ?? "?"}</p>
+    <p><strong>Target Actor:</strong> ${targetActor?.name ?? "?"}</p>
     <p><strong>Item Level:</strong> ${level || "?"}</p>
     <p><strong>Rune Price Difference:</strong> ${diffPriceGP || 0} gp</p>
     <p><strong>Crafting Check DC:</strong> ${dc}</p>
     <p>${inlineCheck}</p>
     <p>On success: Pay 10% of price difference (${costGP.toFixed(
       2
-    )} gp) from ${paySource === "party" ? "party stash" : "actor"} funds and transfer the rune.</p>
+    )} gp) from ${paySource === "party" ? "party stash" : paySource === "target" ? "target actor" : "source actor"} funds and transfer the rune.</p>
   `;
 
   await ChatMessage.create({
@@ -1083,10 +1128,12 @@ const performRuneTransferWithCost = async ({
       success: {
         label: "Success",
         callback: async () => {
-          const payment = await payRuneTransferCost(actor, partyActor, diffPriceGP, paySource);
+          const payment = await payRuneTransferCost(sourceActor, targetActor, partyActor, diffPriceGP, paySource);
           if (!payment.success) return;
 
           const ok = await executeSingleRuneTransfer({
+            sourceActor,
+            targetActor,
             source,
             target,
             choice,
@@ -1112,11 +1159,34 @@ const performRuneTransferWithCost = async ({
 /** Mögliche Ziel-Items für Transfer (gleicher Typ, anderes Item) */
 const buildRuneTransferTargets = (actor, sourceItem) => {
   if (!actor || !sourceItem) return [];
-  return actor.items.filter(
-    (item) =>
-      item.id !== sourceItem.id &&
-      ["weapon", "armor", "shield"].includes(item.type) &&
-      item.type === sourceItem.type
+
+  const partyActor = getActivePartyActor();
+  const partyMemberIds = new Set(
+    (Array.isArray(partyActor?.members) ? partyActor.members : [])
+      .map((member) => member?.id ?? member?.actor?.id ?? member?.actorId)
+      .filter(Boolean)
+  );
+
+  const relevantActors = game.actors.filter(
+    (candidate) => candidate && (candidate.id === actor.id || partyMemberIds.has(candidate.id))
+  );
+
+  return relevantActors.flatMap((targetActor) =>
+    targetActor.items
+      .filter(
+        (item) =>
+          item.id !== sourceItem.id &&
+          ALLOWED_TRANSFER_ITEM_TYPES.includes(item.type) &&
+          item.type === sourceItem.type
+      )
+      .map((item) => ({
+        id: `${targetActor.id}:${item.id}`,
+        name: `${targetActor.name} → ${item.name}`,
+        targetActorId: targetActor.id,
+        targetItemId: item.id,
+        targetActorName: targetActor.name,
+        targetItemName: item.name,
+      }))
   );
 };
 
@@ -1137,7 +1207,7 @@ const handleTransferRunesClick = (event) => {
 
   const targets = buildRuneTransferTargets(actor, sourceItem);
   if (!targets.length) {
-    ui.notifications?.warn?.("No valid rune transfer targets found.");
+    ui.notifications?.warn?.(t("warnings.noValidTargets"));
     return;
   }
 
@@ -1172,9 +1242,9 @@ const handleTransferRunesClick = (event) => {
       </div>
 
       <div class="form-group">
-        <label>Target item</label>
+        <label>${t("dialog.targetActorItem")}</label>
         <select name="target">
-          ${targets.map((i) => `<option value="${i.id}">${i.name}</option>`).join("")}
+          ${targets.map((i) => `<option value="${i.id}">${i.targetActorName} → ${i.targetItemName}</option>`).join("")}
         </select>
       </div>
 
@@ -1196,7 +1266,7 @@ const handleTransferRunesClick = (event) => {
       <div class="form-group">
         <label>Funds</label>
         <div class="form-fields">
-          <p>Actor cash: ${actorGP.toFixed(2)} gp</p>
+          <p>Source actor cash: ${actorGP.toFixed(2)} gp</p>
           <p>Party stash: ${partyGP.toFixed(2)} gp</p>
         </div>
       </div>
@@ -1204,7 +1274,8 @@ const handleTransferRunesClick = (event) => {
       <div class="form-group">
         <label>Payment source</label>
         <div class="form-fields">
-          <label><input type="radio" name="pay-source" value="actor" checked /> Actor</label>
+          <label><input type="radio" name="pay-source" value="source" checked /> Source actor</label>
+          <label><input type="radio" name="pay-source" value="target" /> Target actor</label>
           <label><input type="radio" name="pay-source" value="party" /> Party stash</label>
         </div>
       </div>
@@ -1226,16 +1297,19 @@ const handleTransferRunesClick = (event) => {
         confirm: {
           label: "Confirm",
           callback: async (html) => {
-            const targetId = html.find("select[name='target']").val();
+            const targetValue = html.find("select[name='target']").val();
             const runeId = html.find("select[name='rune-choice']").val();
             const method = html.find("input[name='method']:checked").val() || "crafting";
-            const paySource = html.find("input[name='pay-source']:checked").val() || "actor";
+            const paySource = html.find("input[name='pay-source']:checked").val() || "source";
             const remove = html.find("input[name='remove']").prop("checked");
 
-            if (!targetId || !runeId) return;
+            if (!targetValue || !runeId) return;
 
-            const target = actor.items.get(targetId);
-            if (!target) return;
+            const [targetActorId, targetItemId] = String(targetValue).split(":");
+            if (!targetActorId || !targetItemId) {
+              ui.notifications?.warn?.(t("warnings.invalidTargetSelection"));
+              return;
+            }
 
             const choice = runeChoices.find((c) => c.id === runeId);
             if (!choice) {
@@ -1244,10 +1318,11 @@ const handleTransferRunesClick = (event) => {
             }
 
             Hooks.callAll("pf2eRuneManagerTransferRunes", {
-              actor,
               partyActor,
-              sourceId,
-              targetId,
+              sourceActorId: actor.id,
+              sourceItemId: sourceId,
+              targetActorId,
+              targetItemId,
               choice,
               method,
               removeFromSource: remove,
@@ -1258,7 +1333,18 @@ const handleTransferRunesClick = (event) => {
         cancel: { label: "Cancel" },
         swap: {
           label: "Swap Dialog",
-          callback: () => openRuneSwapDialog({ actor, itemA: sourceItem, targets, runeChoicesA: runeChoices }),
+          callback: () =>
+            openRuneSwapDialog({
+              actor,
+              itemA: sourceItem,
+              targets: targets
+                .filter((targetOption) => targetOption.targetActorId === actor.id)
+                .map((targetOption) => ({
+                  id: targetOption.targetItemId,
+                  name: targetOption.targetItemName,
+                })),
+              runeChoicesA: runeChoices,
+            }),
         },
       },
       default: "confirm",
@@ -1299,10 +1385,24 @@ Hooks.once("ready", () => {
 // Hook: eigentliche Logik ausführen
 Hooks.on(
   "pf2eRuneManagerTransferRunes",
-  async ({ actor, partyActor, sourceId, targetId, choice, method, removeFromSource, paySource }) => {
-    const source = actor?.items?.get(sourceId);
-    const target = actor?.items?.get(targetId);
+  async ({
+    partyActor,
+    sourceActorId,
+    sourceItemId,
+    targetActorId,
+    targetItemId,
+    choice,
+    method,
+    removeFromSource,
+    paySource,
+  }) => {
+    const sourceActor = game.actors.get(sourceActorId);
+    const targetActor = game.actors.get(targetActorId);
+    const source = sourceActor?.items?.get(sourceItemId);
+    const target = targetActor?.items?.get(targetItemId);
     DBG_TRANSFER("pf2eRuneManagerTransferRunes", {
+      sourceActor: sourceActor?.name,
+      targetActor: targetActor?.name,
       source: source?.name,
       target: target?.name,
       choice,
@@ -1310,17 +1410,33 @@ Hooks.on(
       removeFromSource,
       paySource,
     });
-    if (!source || !target) return;
+    if (!sourceActor || !targetActor || !source || !target) {
+      ui.notifications?.warn?.(t("warnings.invalidSourceOrTarget"));
+      return;
+    }
+
+    const canEditSource = Boolean(sourceActor.isOwner ?? sourceActor.testUserPermission?.(game.user, "OWNER"));
+    const canEditTarget = Boolean(targetActor.isOwner ?? targetActor.testUserPermission?.(game.user, "OWNER"));
+    if (!canEditSource || !canEditTarget) {
+      ui.notifications?.warn?.(
+        tf("warnings.actorPermissionsMissing", {
+          sourceActor: sourceActor.name,
+          targetActor: targetActor.name,
+        })
+      );
+      return;
+    }
 
     await performRuneTransferWithCost({
-      actor,
+      sourceActor,
+      targetActor,
       partyActor,
       source,
       target,
       choice,
       method,
       removeFromSource,
-      paySource: paySource || "actor",
+      paySource: paySource || "source",
     });
   }
 );

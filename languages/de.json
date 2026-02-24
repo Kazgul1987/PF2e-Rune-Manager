@@ -8,5 +8,24 @@
       "ConsumeRuneSettingHint": "Löscht die Rune nach dem Anbringen am Ziel.",
       "ConsumeRuneSettingName": "Rune beim Anbringen verbrauchen"
     }
+  },
+  "pf2e-rune-manager": {
+    "dialog": {
+      "targetActorItem": "Ziel-Actor + Item"
+    },
+    "warnings": {
+      "noValidTargets": "Keine gültigen Ziele für den Runentransfer gefunden.",
+      "invalidTargetSelection": "Ungültige Zielauswahl.",
+      "invalidSourceOrTarget": "Quell- oder Ziel-Actor/Item konnte nicht aufgelöst werden.",
+      "actorPermissionsMissing": "Fehlende Rechte zum Bearbeiten von Quell-Actor ({sourceActor}) oder Ziel-Actor ({targetActor}).",
+      "partyMissing": "Keine aktive Party gefunden, um die Transferkosten zu zahlen.",
+      "partyFundsInsufficient": "Der Party-Vorrat hat nicht genug Geld für die Transferkosten ({cost} gp).",
+      "partyFundsRemoveFailed": "Münzen konnten nicht aus dem Party-Vorrat entfernt werden.",
+      "noTargetActorPayment": "Kein Ziel-Actor für die Zahlung verfügbar.",
+      "targetFundsInsufficient": "Der Ziel-Actor hat nicht genug Geld für die Transferkosten ({cost} gp).",
+      "targetFundsRemoveFailed": "Münzen konnten nicht vom Ziel-Actor entfernt werden.",
+      "sourceFundsInsufficient": "Der Quell-Actor hat nicht genug Geld für die Transferkosten ({cost} gp).",
+      "sourceFundsRemoveFailed": "Münzen konnten nicht vom Quell-Actor entfernt werden."
+    }
   }
 }

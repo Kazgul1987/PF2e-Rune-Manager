@@ -8,5 +8,24 @@
       "ConsumeRuneSettingHint": "Delete the rune item after it is applied to a target.",
       "ConsumeRuneSettingName": "Consume rune on apply"
     }
+  },
+  "pf2e-rune-manager": {
+    "dialog": {
+      "targetActorItem": "Target actor + item"
+    },
+    "warnings": {
+      "noValidTargets": "No valid rune transfer targets found.",
+      "invalidTargetSelection": "Invalid target selection.",
+      "invalidSourceOrTarget": "Source or target actor/item could not be resolved.",
+      "actorPermissionsMissing": "Missing permissions to edit source ({sourceActor}) or target ({targetActor}) actor.",
+      "partyMissing": "No active party found to pay the rune transfer cost.",
+      "partyFundsInsufficient": "Party stash does not have enough funds to pay rune transfer cost ({cost} gp).",
+      "partyFundsRemoveFailed": "Could not remove coins from party stash.",
+      "noTargetActorPayment": "No target actor available for payment.",
+      "targetFundsInsufficient": "Target actor does not have enough funds to pay rune transfer cost ({cost} gp).",
+      "targetFundsRemoveFailed": "Could not remove coins from target actor.",
+      "sourceFundsInsufficient": "Source actor does not have enough funds to pay rune transfer cost ({cost} gp).",
+      "sourceFundsRemoveFailed": "Could not remove coins from source actor."
+    }
   }
 }
