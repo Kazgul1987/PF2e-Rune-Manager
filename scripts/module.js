@@ -893,6 +893,29 @@ const handleAttachRunesClick = (event) => {
   const dialog = new Dialog({
     title: "Attach Rune",
     content: dialogContent,
+    render: (html) => {
+      const actorSelect = html.find("select[name='rune-target-actor']");
+      const itemSelect = html.find("select[name='rune-target-item']");
+
+      const refreshTargetItems = () => {
+        const selectedActorId = String(actorSelect?.val() ?? "");
+        const actorTargets = groupedTargets[selectedActorId]?.items ?? [];
+        itemSelect?.empty();
+        actorTargets.forEach((targetEntry) => {
+          itemSelect?.append(
+            `<option value="${targetEntry.targetItemId}">${targetEntry.targetItemName}</option>`
+          );
+        });
+
+        const hasTargets = actorTargets.length > 0;
+        itemSelect?.prop("disabled", !hasTargets);
+      };
+
+      actorSelect
+        ?.off("change.pf2eRuneManagerAttachTarget")
+        .on("change.pf2eRuneManagerAttachTarget", refreshTargetItems);
+      refreshTargetItems();
+    },
     buttons: {
       confirm: {
         label: "Confirm",
@@ -902,7 +925,10 @@ const handleAttachRunesClick = (event) => {
           const consumeRune = dialogHtml
             .find("input[name='consume-rune']")
             .prop("checked");
-          if (!targetActorId || !targetItemId) return;
+          if (!targetActorId || !targetItemId) {
+            ui.notifications?.warn("No valid target selected.");
+            return;
+          }
 
           Hooks.callAll("pf2eRuneManagerAttachRune", {
             actor,
@@ -919,26 +945,6 @@ const handleAttachRunesClick = (event) => {
   });
 
   dialog.render(true);
-  const dialogElement = dialog.element;
-  const actorSelect = dialogElement?.find("select[name='rune-target-actor']");
-  const itemSelect = dialogElement?.find("select[name='rune-target-item']");
-
-  const refreshTargetItems = () => {
-    const selectedActorId = actorSelect?.val();
-    const actorTargets = groupedTargets[String(selectedActorId)]?.items ?? [];
-    itemSelect?.empty();
-    actorTargets.forEach((targetEntry) => {
-      itemSelect?.append(
-        `<option value="${targetEntry.targetItemId}">${targetEntry.targetItemName}</option>`
-      );
-    });
-  };
-
-  actorSelect?.off("change.pf2eRuneManagerAttachTarget").on(
-    "change.pf2eRuneManagerAttachTarget",
-    refreshTargetItems
-  );
-  refreshTargetItems();
 };
 
 const renderActorSheetHook = (app, html) => {
