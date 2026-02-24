@@ -890,7 +890,7 @@ const handleAttachRunesClick = (event) => {
     </form>
   `;
 
-  new Dialog({
+  const dialog = new Dialog({
     title: "Attach Rune",
     content: dialogContent,
     buttons: {
