@@ -34,6 +34,9 @@ const getDCForRuneLevel = (level) => {
   return LEVEL_DC_MAP[lvl] ?? 14;
 };
 
+const getRuneLevel = (runeItem) =>
+  Number(runeItem?.system?.level?.value ?? runeItem?.system?.level ?? 0) || 0;
+
 const FALLBACK_WEAPON_PROPERTY_RUNE_SLUGS = new Set([
   "anarchic",
   "astral",
@@ -166,6 +169,13 @@ const findRunestoneOwner = (actor) => {
 const getPropertyRuneEntry = (propertyData, runeKey) => {
   if (!propertyData || !runeKey) return null;
   return propertyData[runeKey] ?? Object.values(propertyData).find((entry) => entry?.slug === runeKey);
+};
+
+const getPropertyRuneLevel = (runeKey, kind, systemRuneData) => {
+  if (!runeKey || !kind || !systemRuneData) return 0;
+  const propertyData = kind === "armor" ? systemRuneData.armor?.property : systemRuneData.weapon?.property;
+  const entry = getPropertyRuneEntry(propertyData, runeKey);
+  return Number(entry?.level ?? entry?.itemLevel ?? entry?.lvl ?? 0) || 0;
 };
 
 const buildPropertyRuneItemData = ({
@@ -623,11 +633,59 @@ const applyPropertyRune = async (runeItem, targetItem) => {
       }).render(true);
     });
 
+  const promptSwapCraftingCheck = async ({ removedRuneKey }) => {
+    if (!removedRuneKey) return true;
+
+    const targetKind = targetItem?.type === "armor" ? "armor" : "weapon";
+    const incomingLevel = getRuneLevel(runeItem);
+    const removedLevel = getPropertyRuneLevel(removedRuneKey, targetKind, systemRuneData);
+    const higherLevel = Math.max(incomingLevel, removedLevel);
+    const dc = getDCForRuneLevel(higherLevel);
+    const inlineCheck = `@Check[crafting|dc:${dc}|name:Rune Swap ${runeItem?.name ?? "Rune"}]`;
+    const speaker = ChatMessage.getSpeaker({ actor: targetItem?.actor ?? runeItem?.actor });
+
+    const content = `
+      <p><strong>Rune Swap (Crafting)</strong></p>
+      <p><strong>New Rune:</strong> ${runeItem?.name ?? "?"}</p>
+      <p><strong>Removed Rune:</strong> ${getPropertyRuneLabel(removedRuneKey)}</p>
+      <p><strong>Higher Item Level:</strong> ${higherLevel}</p>
+      <p><strong>Crafting Check DC:</strong> ${dc}</p>
+      <p>${inlineCheck}</p>
+    `;
+
+    await ChatMessage.create({
+      speaker,
+      content,
+      type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+    });
+
+    return new Promise((resolve) => {
+      new Dialog({
+        title: "Rune Swap Crafting Result",
+        content: `<p>Did the crafting check for swapping to <strong>${runeItem?.name ?? "this rune"}</strong> (DC ${dc}) succeed?</p>`,
+        buttons: {
+          success: {
+            label: "Success",
+            callback: () => resolve(true),
+          },
+          failure: {
+            label: "Failure",
+            callback: () => resolve(false),
+          },
+        },
+        default: "failure",
+        close: () => resolve(false),
+      }).render(true);
+    });
+  };
+
   let updatedExisting = existing;
   let removedRuneKey = null;
   if (existing.length >= maxSlots) {
     const removal = await promptRuneRemoval();
     if (!removal) return false;
+    const swapCheckSuccess = await promptSwapCraftingCheck({ removedRuneKey: removal });
+    if (!swapCheckSuccess) return false;
     updatedExisting = removeFirstMatch(existing, removal);
     removedRuneKey = removal;
   }
