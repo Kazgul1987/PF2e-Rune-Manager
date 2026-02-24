@@ -7,12 +7,37 @@ type RuneManagerItem = {
 };
 
 type RuneManagerActor = {
+  id?: string;
+  name?: string;
+  type?: string;
+  isOwner?: boolean;
+  ownership?: Record<string, number>;
+  testUserPermission?: (user: unknown, permission: string) => boolean;
   items: {
     get: (id: string) => RuneManagerItem | undefined;
     filter: (predicate: (item: RuneManagerItem) => boolean) => RuneManagerItem[];
   };
   sheet?: {
     render: (force?: boolean) => void;
+  };
+};
+
+type RuneTargetSelection = {
+  actorId: string;
+  actorName: string;
+  itemId: string;
+  itemName: string;
+};
+
+type RuneManagerUser = {
+  id?: string;
+  isGM?: boolean;
+};
+
+type RuneManagerGame = {
+  user?: RuneManagerUser;
+  actors?: {
+    filter: (predicate: (actor: RuneManagerActor) => boolean) => RuneManagerActor[];
   };
 };
 
@@ -331,7 +356,7 @@ export class CharacterActor {
       return;
     }
 
-    const eligibleTargets = this.getEligibleRuneTargets(runeItem);
+    const eligibleTargets = this.getEligibleRuneTargetsAcrossActors(runeItem);
     if (eligibleTargets.length === 0) {
       ui.notifications?.warn("Es gibt keine passenden Ziele für diese Rune.");
       return;
@@ -345,23 +370,34 @@ export class CharacterActor {
         confirm: {
           label: "Anbringen",
           callback: async (html) => {
-            const selectedId = (html as JQuery)
+            const selectedValue = (html as JQuery)
               .find('input[name="rune-target"]:checked')
               .val() as string | undefined;
-            if (!selectedId) {
+            if (!selectedValue) {
               ui.notifications?.warn("Bitte wähle ein Ziel-Item aus.");
               return;
             }
 
-            const targetItem = this.actor.items.get(selectedId);
-            if (!targetItem) {
+            const selectedTarget = eligibleTargets.find(
+              (target) => `${target.actorId}:${target.itemId}` === selectedValue
+            );
+            if (!selectedTarget) {
+              ui.notifications?.warn("Das Ziel-Item konnte nicht gefunden werden.");
+              return;
+            }
+
+            const targetActor = this.getCandidateTargetActors().find(
+              (actor) => actor.id === selectedTarget.actorId
+            );
+            const targetItem = targetActor?.items.get(selectedTarget.itemId);
+            if (!targetActor || !targetItem) {
               ui.notifications?.warn("Das Ziel-Item konnte nicht gefunden werden.");
               return;
             }
 
             const success = await this.attachRuneToItem(runeItem, targetItem);
             if (success) {
-              this.actor.sheet?.render(true);
+              targetActor.sheet?.render(true);
             }
           },
         },
@@ -375,7 +411,25 @@ export class CharacterActor {
     dialog.render(true);
   }
 
-  private getEligibleRuneTargets(runeItem: RuneManagerItem): RuneManagerItem[] {
+  private getCandidateTargetActors(): RuneManagerActor[] {
+    const gameData = game as RuneManagerGame;
+    const actors = gameData.actors;
+    if (!actors) {
+      return [];
+    }
+
+    return actors.filter((actor) => {
+      if (actor.type !== "character") {
+        return false;
+      }
+
+      return this.userCanManageActor(actor, gameData.user);
+    });
+  }
+
+  private getEligibleRuneTargetsAcrossActors(
+    runeItem: RuneManagerItem
+  ): RuneTargetSelection[] {
     const runeDefinition = this.getRuneDefinition(
       runeItem.name,
       this.getRuneItemSlug(runeItem)
@@ -383,24 +437,60 @@ export class CharacterActor {
     if (!runeDefinition) {
       return [];
     }
-    return this.actor.items.filter((item) => {
-      if (!this.isEquipmentItem(item)) {
-        return false;
-      }
 
-      if (!this.isRuneCompatibleWithTarget(runeItem.name, item, runeItem)) {
-        return false;
-      }
+    return this.getCandidateTargetActors().flatMap((actor) =>
+      actor.items
+        .filter((item) => {
+          if (!this.isEquipmentItem(item)) {
+            return false;
+          }
 
-      return this.hasAvailableRuneSlot(item);
-    });
+          if (!this.isRuneCompatibleWithTarget(runeItem.name, item, runeItem)) {
+            return false;
+          }
+
+          return this.hasAvailableRuneSlot(item);
+        })
+        .map((item) => ({
+          actorId: actor.id ?? "",
+          actorName: actor.name ?? "Unbekannter Charakter",
+          itemId: item.id,
+          itemName: item.name,
+        }))
+        .filter((target) => target.actorId.length > 0)
+    );
   }
 
-  private renderRuneTargetDialog(items: RuneManagerItem[]): string {
+  private userCanManageActor(
+    actor: RuneManagerActor,
+    user?: RuneManagerUser
+  ): boolean {
+    if (typeof actor.testUserPermission === "function") {
+      return actor.testUserPermission(user, "OWNER");
+    }
+
+    if (actor.isOwner) {
+      return true;
+    }
+
+    if (user?.isGM) {
+      return true;
+    }
+
+    const userId = user?.id;
+    if (!userId || !actor.ownership) {
+      return false;
+    }
+
+    const ownershipLevel = actor.ownership[userId];
+    return typeof ownershipLevel === "number" && ownershipLevel >= 3;
+  }
+
+  private renderRuneTargetDialog(items: RuneTargetSelection[]): string {
     const options = items
       .map(
         (item) =>
-          `<label class="radio"><input type="radio" name="rune-target" value="${item.id}"> ${item.name}</label>`
+          `<label class="radio"><input type="radio" name="rune-target" value="${item.actorId}:${item.itemId}"> ${item.actorName} – ${item.itemName}</label>`
       )
       .join("<br>");
 
