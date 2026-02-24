@@ -741,6 +741,32 @@ const getRuneCategoryForSwap = (rune) => (rune?.type === "fundamental" ? "fundam
 
 const cloneRuneStateForSwap = (item) => foundry.utils.duplicate(item?.system?.runes ?? {});
 
+const removePropertyRuneFromStateForSwap = (runesState, rune) => {
+  if (rune?.type !== "property") return;
+
+  const propRunes = Array.isArray(runesState?.property) ? [...runesState.property] : [];
+  const outgoingSlug = rune?.slug;
+  if (!outgoingSlug) {
+    runesState.property = propRunes;
+    return;
+  }
+
+  const exactIndex = propRunes.findIndex((prop) => prop === outgoingSlug);
+  if (exactIndex !== -1) {
+    propRunes.splice(exactIndex, 1);
+    runesState.property = propRunes;
+    return;
+  }
+
+  const outgoingFamilySlug = normalizePropertyRuneFamilySlug(outgoingSlug);
+  const familyIndex = propRunes.findIndex(
+    (prop) => normalizePropertyRuneFamilySlug(prop) === outgoingFamilySlug
+  );
+  if (familyIndex !== -1) propRunes.splice(familyIndex, 1);
+
+  runesState.property = propRunes;
+};
+
 const applyRuneToStateForSwap = (runesState, rune) => {
   if (rune.type === "fundamental") {
     runesState[rune.kind] = Number(rune.rank ?? 0);
@@ -760,7 +786,7 @@ const applyRuneToStateForSwap = (runesState, rune) => {
     propRunes.push(incomingSlug);
   }
 
-  runesState.property = propRunes.filter(Boolean);
+  runesState.property = [...new Set(propRunes.filter(Boolean))];
 };
 
 const ensureSwapSlotRules = ({ item, incomingRune, updatedRunes }) => {
@@ -781,7 +807,10 @@ const executeRuneSwap = async ({ itemA, itemB, runeA, runeB }) => {
   const runesA = cloneRuneStateForSwap(itemA);
   const runesB = cloneRuneStateForSwap(itemB);
 
+  removePropertyRuneFromStateForSwap(runesA, runeA);
   applyRuneToStateForSwap(runesA, runeB);
+
+  removePropertyRuneFromStateForSwap(runesB, runeB);
   applyRuneToStateForSwap(runesB, runeA);
 
   if (!ensureSwapSlotRules({ item: itemA, incomingRune: runeB, updatedRunes: runesA })) return false;
