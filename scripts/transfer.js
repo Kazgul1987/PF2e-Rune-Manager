@@ -41,6 +41,16 @@ const getDCForRuneLevel = (level) => {
   return LEVEL_DC_MAP[lvl] ?? 14;
 };
 
+const getOtherChatStyleOrType = () =>
+  CONST.CHAT_MESSAGE_STYLES?.OTHER ?? CONST.CHAT_MESSAGE_TYPES?.OTHER;
+
+const getOtherChatMessageData = () => {
+  const otherValue = getOtherChatStyleOrType();
+  return CONST.CHAT_MESSAGE_STYLES?.OTHER != null
+    ? { style: otherValue }
+    : { type: otherValue };
+};
+
 // --- Fundamental-Runen-Bewertungen (Level & Preis in GP) ---
 // Direkt aus dem PF2e-System (FUNDAMENTAL_*_RUNE_DATA)
 const FUNDAMENTAL_RUNE_VALUATION = {
@@ -1117,7 +1127,7 @@ const performRuneTransferWithCost = async ({
   await ChatMessage.create({
     speaker,
     content,
-    type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+    ...getOtherChatMessageData(),
   });
 
   // Nach dem Wurf Ergebnis manuell bestätigen lassen

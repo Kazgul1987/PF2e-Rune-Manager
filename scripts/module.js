@@ -34,6 +34,16 @@ const getDCForRuneLevel = (level) => {
   return LEVEL_DC_MAP[lvl] ?? 14;
 };
 
+const getOtherChatStyleOrType = () =>
+  CONST.CHAT_MESSAGE_STYLES?.OTHER ?? CONST.CHAT_MESSAGE_TYPES?.OTHER;
+
+const getOtherChatMessageData = () => {
+  const otherValue = getOtherChatStyleOrType();
+  return CONST.CHAT_MESSAGE_STYLES?.OTHER != null
+    ? { style: otherValue }
+    : { type: otherValue };
+};
+
 const getRuneLevel = (runeItem) =>
   Number(runeItem?.system?.level?.value ?? runeItem?.system?.level ?? 0) || 0;
 
@@ -656,7 +666,7 @@ const applyPropertyRune = async (runeItem, targetItem) => {
     await ChatMessage.create({
       speaker,
       content,
-      type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+      ...getOtherChatMessageData(),
     });
 
     return new Promise((resolve) => {
@@ -1018,7 +1028,7 @@ Hooks.on("pf2eRuneManagerAttachRune", async ({ actor, runeId, targetActorId, tar
   await ChatMessage.create({
     speaker,
     content,
-    type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+    ...getOtherChatMessageData(),
   });
 
   new Dialog({
