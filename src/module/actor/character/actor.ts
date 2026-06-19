@@ -432,10 +432,13 @@ export class CharacterActor {
         },
       },
       default: "confirm",
+    }, {
+      render: () => {
+        this.bindRuneTargetActorSelect(dialog, eligibleTargets);
+      },
     });
 
     dialog.render(true);
-    this.bindRuneTargetActorSelect(dialog, eligibleTargets);
   }
 
   private getCandidateTargetActors(): RuneManagerActor[] {
