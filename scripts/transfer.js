@@ -1334,6 +1334,28 @@ const handleTransferRunesClick = (event) => {
     {
       title: "Transfer Runes",
       content: dialogContent,
+      render: (html) => {
+        const actorSelect = html.find("select[name='target-actor']");
+        const itemSelect = html.find("select[name='target-item']");
+
+        const refreshTargetItems = () => {
+          const selectedActorId = String(actorSelect?.val() ?? "");
+          const actorTargets = groupedTargets[selectedActorId]?.items ?? [];
+          itemSelect?.empty();
+          actorTargets.forEach((targetEntry) => {
+            itemSelect?.append(
+              `<option value="${targetEntry.targetItemId}">${targetEntry.targetItemName}</option>`
+            );
+          });
+
+          itemSelect?.prop("disabled", actorTargets.length === 0);
+        };
+
+        actorSelect
+          ?.off("change.pf2eRuneManagerTarget")
+          .on("change.pf2eRuneManagerTarget", refreshTargetItems);
+        refreshTargetItems();
+      },
       buttons: {
         confirm: {
           label: "Confirm",
@@ -1392,23 +1414,6 @@ const handleTransferRunesClick = (event) => {
   );
 
   dialog.render(true);
-  const dialogElement = dialog.element;
-  const actorSelect = dialogElement?.find("select[name='target-actor']");
-  const itemSelect = dialogElement?.find("select[name='target-item']");
-
-  const refreshTargetItems = () => {
-    const selectedActorId = actorSelect?.val();
-    const actorTargets = groupedTargets[String(selectedActorId)]?.items ?? [];
-    itemSelect?.empty();
-    actorTargets.forEach((targetEntry) => {
-      itemSelect?.append(
-        `<option value="${targetEntry.targetItemId}">${targetEntry.targetItemName}</option>`
-      );
-    });
-  };
-
-  actorSelect?.off("change.pf2eRuneManagerTarget").on("change.pf2eRuneManagerTarget", refreshTargetItems);
-  refreshTargetItems();
 };
 
 /** Icon in die Actor-Sheet-Inventarliste einbauen */
