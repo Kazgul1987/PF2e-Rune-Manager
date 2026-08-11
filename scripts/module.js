@@ -1,5 +1,5 @@
 import { MODULE_ID } from "./constants.js";
-import { getActivePartyActor, getPropertyRuneSlots, isPF2eItemType, prunePropertyRunes } from "./api/pf2e-api.js";
+import { getActivePartyActor, getFundamentalRuneData, getPropertyRuneSlots, isPF2eItemType, prunePropertyRunes } from "./api/pf2e-api.js";
 import { logger } from "./utils/logging.js";
 const ATTACH_RUNES_SELECTOR = "a[data-action='attach-runes']";
 const CLICK_NAMESPACE = ".pf2eRuneManager";
@@ -332,65 +332,6 @@ const isRuneCompatible = (runeItem, targetItem) => {
  * Wichtig: system.runes.* nutzt im aktuellen PF2e-System NUMERISCHE Werte,
  * keine Strings wie "greaterStriking".
  */
-const getFundamentalRuneData = (runeItem) => {
-  const rawName = (runeItem?.name ?? "").toString();
-  const name = rawName.toLowerCase();
-  const data = {};
-
-  // +1 / +2 / +3 / +4 (Potency) aus dem Namen extrahieren
-  const potencyMatch = rawName.match(/[+＋]\s*(\d+)/);
-  if (potencyMatch) {
-    data.potency = Number(potencyMatch[1]);
-  }
-
-  // Falls vorhanden, den Klammerzusatz auslesen: "Striking (Greater)" -> "greater"
-  const rankMatch = rawName.match(/\(([^)]+)\)/);
-  const rankWord = rankMatch ? rankMatch[1].trim().toLowerCase() : "";
-
-  // Helper für Striking/Resilient: 1..4
-  const get4Rank = (kind) => {
-    // Mythic-Variante: kann als "Mythic Striking" ODER "(Mythic)" auftreten
-    if (name.startsWith(`mythic ${kind}`) || rankWord === "mythic") return 4;
-    if (name.startsWith(`major ${kind}`) || rankWord === "major") return 3;
-    if (name.startsWith(`greater ${kind}`) || rankWord === "greater") return 2;
-    // Basis-Rune (ohne Zusätze)
-    return 1;
-  };
-
-  // Weapon: Striking
-  if (name.includes("striking")) {
-    data.striking = get4Rank("striking");
-  }
-
-  // Armor: Resilient
-  if (name.includes("resilient")) {
-    data.resilient = get4Rank("resilient");
-  }
-
-  // Shield: Reinforcing (1..6)
-  if (name.includes("reinforcing")) {
-    // Default: Minor = 1
-    let rank = 1;
-
-    // Bevorzugt nach Klammerzusatz gehen, falls vorhanden
-    const reinforcingRankWord = rankWord || "";
-
-    const w = reinforcingRankWord || "";
-    const lw = w.toLowerCase();
-
-    if (lw === "supreme" || name.includes("reinforcing rune (supreme)")) rank = 6;
-    else if (lw === "major" || name.includes("reinforcing rune (major)")) rank = 5;
-    else if (lw === "greater" || name.includes("reinforcing rune (greater)")) rank = 4;
-    else if (lw === "moderate" || name.includes("reinforcing rune (moderate)")) rank = 3;
-    else if (lw === "lesser" || name.includes("reinforcing rune (lesser)")) rank = 2;
-    else if (lw === "minor" || name.includes("reinforcing rune (minor)")) rank = 1;
-
-    data.reinforcing = rank;
-  }
-
-  return data;
-};
-
 const getRuneCategory = (runeItem) => {
   const slug = sluggifyRuneName(runeItem);
   const systemRuneData = null;

@@ -35,7 +35,12 @@
       "itemTypeMismatch": "Runes can only be transferred between items of the same type.",
       "fundamentalMismatch": "This fundamental rune is not valid for the target item.",
       "propertyMismatch": "This property rune is not valid for the target item.",
-      "propertySlotsFull": "The target item has no available property-rune slots."
+      "propertySlotsFull": "The target item has no available property-rune slots.",
+      "propertySlotsUnknown": "Property-rune slots cannot be determined safely while Automatic Bonus Progression is active. No changes were made."
+    },
+    "errors": {
+      "operationFailedRefunded": "The rune change failed. Original item data and payment were restored as far as Foundry allowed.",
+      "operationFailedRefundFailed": "The rune change failed and the payment could not be refunded automatically. A GM must correct the actor's coins; see the console log."
     },
     "settings": {
       "transferCostPercent": {
