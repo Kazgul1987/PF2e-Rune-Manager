@@ -1,0 +1,49 @@
+```yaml
+name: Build Foundry Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Read module version
+        id: module
+        run: |
+          VERSION=$(jq -r '.version' module.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create release directory
+        run: mkdir -p dist
+
+      - name: Build module ZIP
+        run: |
+          zip -r "dist/pf2e-rune-manager.zip" \
+            module.json \
+            scripts \
+            styles \
+            lang
+
+      - name: Copy manifest
+        run: cp module.json dist/module.json
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            dist/pf2e-rune-manager.zip \
+            dist/module.json \
+            --clobber
+```
