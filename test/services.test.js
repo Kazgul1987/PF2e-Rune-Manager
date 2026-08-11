@@ -22,12 +22,26 @@ test("property slots follow prepared potency and orichalcum", () => {
 });
 
 test("fundamental runes prefer structured data and survive renaming", () => {
-  const renamed = { name: "Helgas Lieblingsrune", system: { usage: { value: "etched-onto-a-weapon" }, level: { value: 12 } } };
-  assert.deepEqual(getFundamentalRuneData(renamed), { striking: 2, source: "system-usage-level" });
+  const renamed = { name: "Helgas Lieblingsrune", system: { slug: "greater-striking", usage: { value: "etched-onto-a-weapon" }, level: { value: 12 } } };
+  assert.deepEqual(getFundamentalRuneData(renamed), { striking: 2, source: "slug" });
   assert.deepEqual(getFundamentalRuneData({ name: "Nicht Englisch", system: { slug: "major-striking" } }), { striking: 3, source: "slug" });
   assert.deepEqual(getFundamentalRuneData({ name: "Umbenannt", slug: "armor-potency-2", system: {} }), { potency: 2, source: "slug" });
   assert.deepEqual(getFundamentalRuneData({ name: "Greater Resilient Rune", system: {} }), { resilient: 2, source: "legacy-name" });
   assert.deepEqual(getFundamentalRuneData({ name: "Striking Rune", system: {} }), { striking: 1, source: "legacy-name" });
+});
+
+test("property rune slugs are not classified from usage and level", () => {
+  const ghostTouch = { name: "Ghost Touch", system: { slug: "ghost-touch", usage: { value: "etched-onto-a-weapon" }, level: { value: 4 } } };
+  const acidResistant = { name: "Acid Resistant", system: { slug: "acid-resistant", usage: { value: "etched-onto-armor" }, level: { value: 8 } } };
+  assert.deepEqual(getFundamentalRuneData(ghostTouch), {});
+  assert.deepEqual(getFundamentalRuneData(acidResistant), {});
+  assert.deepEqual(getFundamentalRuneData({ name: "Umbenannt", system: { usage: { value: "etched-onto-a-weapon" }, level: { value: 12 } } }), {});
+});
+
+test("slug-based reinforcing ranks use the reinforcing progression", () => {
+  assert.deepEqual(getFundamentalRuneData({ name: "Umbenannt", system: { slug: "greater-reinforcing" } }), { reinforcing: 4, source: "slug" });
+  assert.deepEqual(getFundamentalRuneData({ name: "Umbenannt", system: { slug: "major-reinforcing" } }), { reinforcing: 5, source: "slug" });
+  assert.deepEqual(getFundamentalRuneData({ name: "Umbenannt", system: { slug: "supreme-reinforcing" } }), { reinforcing: 6, source: "slug" });
 });
 
 test("ABP property slots use PF2e's exposed variant-rule API", () => {
