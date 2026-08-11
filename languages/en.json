@@ -27,7 +27,25 @@
       "targetFundsInsufficient": "Target actor does not have enough funds to pay rune transfer cost ({cost} gp).",
       "targetFundsRemoveFailed": "Could not remove coins from target actor.",
       "sourceFundsInsufficient": "Source actor does not have enough funds to pay rune transfer cost ({cost} gp).",
-      "sourceFundsRemoveFailed": "Could not remove coins from source actor."
+      "sourceFundsRemoveFailed": "Could not remove coins from source actor.",
+      "unknownValuation": "The rune's level or price could not be determined reliably. No coins or items were changed.",
+      "sameItem": "A rune cannot be transferred to the same item.",
+      "missingDocument": "The source item, target item, or rune is no longer available.",
+      "invalidItem": "The selected item does not expose valid PF2e rune data.",
+      "itemTypeMismatch": "Runes can only be transferred between items of the same type.",
+      "fundamentalMismatch": "This fundamental rune is not valid for the target item.",
+      "propertyMismatch": "This property rune is not valid for the target item.",
+      "propertySlotsFull": "The target item has no available property-rune slots."
+    },
+    "settings": {
+      "transferCostPercent": {
+        "name": "Rune transfer cost (%)",
+        "hint": "Percentage of the rune price difference charged for a transfer. Values outside 0–100 use the default of 10%."
+      },
+      "debug": {
+        "name": "Debug logging",
+        "hint": "Write diagnostic Rune Manager messages to the browser console."
+      }
     }
   }
 }

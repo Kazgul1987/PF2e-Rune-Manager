@@ -6,7 +6,7 @@
   "manifest": "https://raw.githubusercontent.com/Kazgul1987/PF2e-Rune-Manager/main/module.json",
   "download": "https://github.com/Kazgul1987/PF2e-Rune-Manager/releases/latest/download/module.zip",
   "compatibility": {
-    "minimum": "11",
+    "minimum": "14",
     "verified": "14"
   },
   "authors": [
@@ -29,5 +29,13 @@
       "name": "Deutsch",
       "path": "languages/de.json"
     }
-  ]
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "type": "system"
+      }
+    ]
+  }
 }

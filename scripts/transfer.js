@@ -1,6 +1,10 @@
 // scripts/transfer.js
 
-const MODULE_ID = "pf2e-rune-manager";
+import { MODULE_ID } from "./constants.js";
+import { getActivePartyActor, getPropertyRuneSlots, isPF2eItemType, normalizeRuneFamilySlug } from "./api/pf2e-api.js";
+import { canTransferRune } from "./services/rune-service.js";
+import { getRuneSwapCost, getRuneTransferCost, getRuneTransferCostCP } from "./services/payment-service.js";
+import { logger } from "./utils/logging.js";
 
 const TRANSFER_RUNES_SELECTOR = "a[data-action='transfer-runes']";
 const CLICK_NAMESPACE_TRANSFER = ".pf2eRuneManagerTransfer";
@@ -9,7 +13,7 @@ const ALLOWED_TRANSFER_ITEM_TYPES = ["weapon", "armor", "shield"];
 const t = (key) => game.i18n?.localize?.(`${MODULE_ID}.${key}`) ?? key;
 const tf = (key, data = {}) => game.i18n?.format?.(`${MODULE_ID}.${key}`, data) ?? t(key);
 
-const DBG_TRANSFER = (...args) => console.log("[RuneManager Transfer DBG]", ...args);
+const DBG_TRANSFER = (...args) => logger.debug(...args);
 
 // --- DC-Tabelle nach Level (moderate DC, GM Core / DC-by-level) ---
 const LEVEL_DC_MAP = {
@@ -250,40 +254,12 @@ const FALLBACK_PROPERTY_RUNE_VALUATION = {
 
 // --- Utils ---
 
-const isItemTypeTransfer = (item, type) =>
-  typeof item?.isOfType === "function" ? item.isOfType(type) : item?.type === type;
+const isItemTypeTransfer = (item, type) => isPF2eItemType(item, type);
 
 /** Property-Rune-Slots eines Ziel-Items bestimmen (mit PF2e-API, Fallback = Potency) */
-const getPropertyRuneSlotsTransfer = (targetItem) => {
-  const systemSlotsFn =
-    globalThis.getPropertyRuneSlots ??
-    globalThis.game?.pf2e?.runes?.getPropertyRuneSlots ??
-    globalThis.game?.pf2e?.item?.getPropertyRuneSlots ??
-    globalThis.game?.pf2e?.Item?.getPropertyRuneSlots;
-
-  if (typeof systemSlotsFn === "function") {
-    try {
-      return systemSlotsFn(targetItem);
-    } catch {
-      // fall through to fallback
-    }
-  }
-
-  const potency = Number(targetItem?.system?.runes?.potency ?? 0);
-  return Math.max(0, potency);
-};
+const getPropertyRuneSlotsTransfer = getPropertyRuneSlots;
 
 /** Aktive Party ermitteln (falls gesetzt) */
-const getActivePartyActor = () => {
-  try {
-    const partyId = game.settings?.get?.("pf2e", "activeParty");
-    if (!partyId) return null;
-    return game.actors?.get?.(partyId) ?? null;
-  } catch {
-    return null;
-  }
-};
-
 /** GP-Bargeld eines Actors (inventar coins -> goldValue) */
 const getActorGoldValue = (actor) => {
   try {
@@ -295,17 +271,12 @@ const getActorGoldValue = (actor) => {
 };
 
 /** Preis (GP) -> 10% Kosten in GP */
-const getRuneTransferCostGP = (priceGP) => (Number(priceGP) || 0) * 0.1;
+const getRuneTransferCostGP = getRuneTransferCost;
 
 /** Swap-Kosten: 10% der teureren Rune */
-const getRuneSwapCostGP = (sourcePrice, targetPrice) =>
-  Math.max(Number(sourcePrice) || 0, Number(targetPrice) || 0) * 0.1;
+const getRuneSwapCostGP = getRuneSwapCost;
 
 /** 10% Kosten in GP -> Kupfer für removeCoins(byValue) */
-const getRuneTransferCostCP = (priceGP) => {
-  // priceGP * 100 (cp/gp) * 0.1 (10%) = priceGP * 10
-  return Math.round((Number(priceGP) || 0) * 10);
-};
 
 /** CamelCase/Slug zu lesbarem Namen ("greaterSlick" -> "Greater Slick") */
 const titleCaseFromSlug = (slug) => {
@@ -380,25 +351,19 @@ const getFundamentalRuneLabel = (itemType, kind, rank) => {
 /** Fundamental-Runen Level & Preis aus FUNDAMENTAL_RUNE_VALUATION holen */
 const getFundamentalRuneValuation = (itemType, kind, rank) => {
   const table = FUNDAMENTAL_RUNE_VALUATION[itemType]?.[kind];
-  if (!table) return { level: 0, price: 0 };
+  if (!table) return { known: false, level: null, price: null };
   const entry = table[Number(rank) || 0];
-  if (!entry) return { level: 0, price: 0 };
-  return { level: entry.level ?? 0, price: entry.price ?? 0 };
+  if (!entry || !Number.isFinite(entry.level) || !Number.isFinite(entry.price)) {
+    return { known: false, level: null, price: null };
+  }
+  return { known: true, level: entry.level, price: entry.price };
 };
 
-/** PF2e-Rune-Valuation-Funktion holen (falls verfügbar) */
-const getRuneValuationFn = () =>
-  globalThis.getRuneValuationData ??
-  globalThis.game?.pf2e?.runes?.getRuneValuationData ??
-  null;
+// PF2e's getRuneValuationData is an internal source export, not a runtime API.
+// Do not probe invented game.pf2e namespaces for it.
+const getRuneValuationFn = () => null;
 
-const normalizePropertyRuneFamilySlug = (slug) => {
-  if (typeof slug !== "string") return "";
-  const match = slug.match(/^(greater|major|lesser|minor|moderate|supreme|true)([A-Z].*)/);
-  if (!match) return slug;
-  const remainder = match[2];
-  return remainder.charAt(0).toLowerCase() + remainder.slice(1);
-};
+const normalizePropertyRuneFamilySlug = normalizeRuneFamilySlug;
 
 /** Versuch, für eine Property-Rune Level & Preis zu bekommen */
 const getPropertyRuneValuation = (item, propertySlug, runeValuations) => {
@@ -411,7 +376,7 @@ const getPropertyRuneValuation = (item, propertySlug, runeValuations) => {
       const level = Number(found.level ?? 0) || 0;
       const price = Number(found.price ?? 0) || 0;
       if (price > 0 || level > 0) {
-        return { level, price };
+        return { known: true, level, price };
       }
     }
   }
@@ -429,22 +394,26 @@ const getPropertyRuneValuation = (item, propertySlug, runeValuations) => {
 
   if (table && Object.prototype.hasOwnProperty.call(table, propertySlug)) {
     const entry = table[propertySlug];
-    return { level: entry.level ?? 0, price: entry.price ?? 0 };
+    const level = Number(entry.level);
+    const price = Number(entry.price);
+    return Number.isFinite(level) && Number.isFinite(price) && price >= 0
+      ? { known: true, level, price }
+      : { known: false, level: null, price: null };
   }
 
-  // 3) Wenn wir gar nichts wissen: 0 / 0 zurückgeben
-  return { level: 0, price: 0 };
+  // Unknown PF2e/third-party runes must never silently become free.
+  return { known: false, level: null, price: null };
 };
 
 const getTargetRunePriceGP = (target, choice) => {
-  if (!target || !choice) return 0;
+  if (!target || !choice) return null;
   if (choice.type === "fundamental") {
     const kind = choice.kind;
     const itemType = choice.itemType ?? target.type;
     const targetRank = Number(target?.system?.runes?.[kind] ?? 0);
     if (!targetRank) return 0;
-    const { price } = getFundamentalRuneValuation(itemType, kind, targetRank);
-    return Number(price ?? 0) || 0;
+    const valuation = getFundamentalRuneValuation(itemType, kind, targetRank);
+    return valuation.known ? valuation.price : null;
   }
 
   if (choice.type === "property") {
@@ -460,11 +429,11 @@ const getTargetRunePriceGP = (target, choice) => {
     const runeValuationFn = getRuneValuationFn();
     const runeValuations =
       typeof runeValuationFn === "function" ? runeValuationFn(target) ?? [] : [];
-    const { price } = getPropertyRuneValuation(target, matchingSlug, runeValuations);
-    return Number(price ?? 0) || 0;
+    const valuation = getPropertyRuneValuation(target, matchingSlug, runeValuations);
+    return valuation.known ? valuation.price : null;
   }
 
-  return 0;
+  return null;
 };
 
 /** Auswahl-Liste der einzelnen Runen eines Items vorbereiten */
@@ -666,6 +635,12 @@ const executeSingleRuneTransfer = async ({
   choice,
   removeFromSource,
 }) => {
+  const validation = canTransferRune(source, target, choice);
+  if (!validation.valid) {
+    logger.warn("Rune transfer validation failed", { reason: validation.reason, source: source?.uuid, target: target?.uuid, choice });
+    ui.notifications?.warn?.(tf(`warnings.${validation.reason}`));
+    return false;
+  }
   const sourceRunes = foundry.utils.duplicate(source.system?.runes ?? {});
   const targetRunes = foundry.utils.duplicate(target.system?.runes ?? {});
 
@@ -883,8 +858,13 @@ const executeRuneSwap = async ({ itemA, itemB, runeA, runeB }) => {
  * - Beide Runen atomar tauschen
  */
 const performRuneSwapWithCost = async ({ actor, partyActor, itemA, itemB, runeA, runeB, paySource }) => {
-  const sourceRunePriceGP = Number(runeA?.price ?? 0);
-  const targetRunePriceGP = Number(runeB?.price ?? 0);
+  const sourceRunePriceGP = Number(runeA?.price);
+  const targetRunePriceGP = Number(runeB?.price);
+  if (![sourceRunePriceGP, targetRunePriceGP].every((price) => Number.isFinite(price) && price >= 0)) {
+    logger.warn("Blocked swap with unknown rune valuation", { runeA, runeB, itemA: itemA?.uuid, itemB: itemB?.uuid });
+    ui.notifications?.warn?.(t("warnings.unknownValuation"));
+    return false;
+  }
   const expensiveRunePriceGP = Math.max(sourceRunePriceGP, targetRunePriceGP);
   const swapCostGP = getRuneSwapCostGP(sourceRunePriceGP, targetRunePriceGP);
 
@@ -1063,9 +1043,19 @@ const performRuneTransferWithCost = async ({
   removeFromSource,
   paySource,
 }) => {
-  const level = Number(choice.level ?? 0);
-  const sourcePriceGP = Number(choice.price ?? 0);
+  const level = Number(choice.level);
+  const sourcePriceGP = Number(choice.price);
+  if (!Number.isFinite(level) || !Number.isFinite(sourcePriceGP) || sourcePriceGP < 0) {
+    logger.warn("Blocked transfer with unknown rune valuation", { choice, source: source?.uuid });
+    ui.notifications?.warn?.(t("warnings.unknownValuation"));
+    return;
+  }
   const targetPriceGP = getTargetRunePriceGP(target, choice);
+  if (targetPriceGP === null || !Number.isFinite(targetPriceGP) || targetPriceGP < 0) {
+    logger.warn("Blocked transfer with unknown target rune valuation", { choice, target: target?.uuid });
+    ui.notifications?.warn?.(t("warnings.unknownValuation"));
+    return;
+  }
   const diffPriceGP = Math.abs(sourcePriceGP - targetPriceGP);
   const dc = getDCForRuneLevel(level);
   const costGP = getRuneTransferCostGP(diffPriceGP);

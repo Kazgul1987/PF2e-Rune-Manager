@@ -1,8 +1,10 @@
-const MODULE_ID = "pf2e-rune-manager";
+import { MODULE_ID } from "./constants.js";
+import { getActivePartyActor, getPropertyRuneSlots, isPF2eItemType, prunePropertyRunes } from "./api/pf2e-api.js";
+import { logger } from "./utils/logging.js";
 const ATTACH_RUNES_SELECTOR = "a[data-action='attach-runes']";
 const CLICK_NAMESPACE = ".pf2eRuneManager";
 
-const DBG = (...args) => console.log("[RuneManager DBG]", ...args);
+const DBG = (...args) => logger.debug(...args);
 
 // --- DC-Tabelle nach Level (moderate DC, GM Core / DC-by-level) ---
 const LEVEL_DC_MAP = {
@@ -82,21 +84,30 @@ Hooks.once("init", () => {
     type: Boolean,
     default: false,
   });
+  game.settings?.register(MODULE_ID, "transferCostPercent", {
+    name: `${MODULE_ID}.settings.transferCostPercent.name`,
+    hint: `${MODULE_ID}.settings.transferCostPercent.hint`,
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 10,
+  });
+  game.settings?.register(MODULE_ID, "debug", {
+    name: `${MODULE_ID}.settings.debug.name`,
+    hint: `${MODULE_ID}.settings.debug.hint`,
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
 });
 
-const sluggifyText = (value) => {
-  const sluggifyFn =
-    globalThis.sluggify ??
-    globalThis.game?.pf2e?.sluggify ??
-    globalThis.game?.pf2e?.system?.sluggify;
-
-  if (!value) return "";
-  const slug =
-    typeof sluggifyFn === "function"
-      ? sluggifyFn(value)
-      : value.toString().toLowerCase().replace(/\s+/g, "-");
-  return slug?.toString().toLowerCase() ?? "";
-};
+// Rune item slugs are PF2e document data. This local conversion is used only
+// when legacy items have no system.slug and is never preferred over that field.
+const sluggifyText = (value) =>
+  value
+    ? value.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "")
+    : "";
 
 const sluggifyRuneName = (runeItem) => {
   const name = runeItem?.name ?? "";
@@ -120,33 +131,7 @@ const getItemTraits = (item) =>
     .filter(Boolean)
     .map((trait) => trait.toString().toLowerCase());
 
-const isItemType = (item, type) =>
-  typeof item?.isOfType === "function" ? item.isOfType(type) : item?.type === type;
-
-const getPropertyRuneSlots = (targetItem) => {
-  const systemSlotsFn =
-    globalThis.getPropertyRuneSlots ??
-    globalThis.game?.pf2e?.runes?.getPropertyRuneSlots ??
-    globalThis.game?.pf2e?.item?.getPropertyRuneSlots ??
-    globalThis.game?.pf2e?.Item?.getPropertyRuneSlots;
-
-  if (typeof systemSlotsFn === "function") {
-    return systemSlotsFn(targetItem);
-  }
-
-  const potency = Number(targetItem?.system?.runes?.potency ?? 0);
-  return Math.max(0, potency);
-};
-
-const getActivePartyActor = () => {
-  try {
-    const partyId = game.settings?.get?.("pf2e", "activeParty");
-    if (!partyId) return null;
-    return game.actors?.get?.(partyId) ?? null;
-  } catch {
-    return null;
-  }
-};
+const isItemType = (item, type) => isPF2eItemType(item, type);
 
 const isRunestoneItem = (item) => {
   const slug = sluggifyText(item?.system?.slug ?? item?.slug ?? item?.name ?? "");
@@ -326,7 +311,8 @@ const isRuneCompatible = (runeItem, targetItem) => {
   }
 
   // Property slots prüfen (nur um volle Items früh auszufiltern)
-  const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
+  // PF2e RUNE_DATA is an internal source export, not an exposed runtime API.
+  const systemRuneData = null;
   if (systemRuneData) {
     const runeSlug = sluggifyRuneName(runeItem);
     const isWeaponProperty = systemRuneData.weapon?.property?.[runeSlug];
@@ -407,7 +393,7 @@ const getFundamentalRuneData = (runeItem) => {
 
 const getRuneCategory = (runeItem) => {
   const slug = sluggifyRuneName(runeItem);
-  const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
+  const systemRuneData = null;
   const usage = getRuneUsageValue(runeItem);
 
   const fundamental = getFundamentalRuneData(runeItem);
@@ -562,9 +548,8 @@ const resolvePropertyRuneKey = (runeItem, targetItemType, systemRuneData) => {
 };
 
 const applyPropertyRune = async (runeItem, targetItem) => {
-  const systemRuneData = globalThis.RUNE_DATA ?? globalThis.game?.pf2e?.runes?.RUNE_DATA;
-  const systemPrunePropertyRunes =
-    globalThis.prunePropertyRunes ?? globalThis.game?.pf2e?.runes?.prunePropertyRunes;
+  const systemRuneData = null;
+  const systemPrunePropertyRunes = prunePropertyRunes;
 
   const runeSlug = sluggifyRuneName(runeItem);
   DBG("applyPropertyRune", { rune: runeItem?.name, runeSlug });
