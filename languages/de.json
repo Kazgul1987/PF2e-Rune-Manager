@@ -27,7 +27,25 @@
       "targetFundsInsufficient": "Der Ziel-Actor hat nicht genug Geld für die Transferkosten ({cost} gp).",
       "targetFundsRemoveFailed": "Münzen konnten nicht vom Ziel-Actor entfernt werden.",
       "sourceFundsInsufficient": "Der Quell-Actor hat nicht genug Geld für die Transferkosten ({cost} gp).",
-      "sourceFundsRemoveFailed": "Münzen konnten nicht vom Quell-Actor entfernt werden."
+      "sourceFundsRemoveFailed": "Münzen konnten nicht vom Quell-Actor entfernt werden.",
+      "unknownValuation": "Level oder Preis der Rune konnten nicht zuverlässig bestimmt werden. Münzen und Items wurden nicht verändert.",
+      "sameItem": "Eine Rune kann nicht auf dasselbe Item übertragen werden.",
+      "missingDocument": "Quell-Item, Ziel-Item oder Rune ist nicht mehr verfügbar.",
+      "invalidItem": "Das gewählte Item enthält keine gültigen PF2e-Runendaten.",
+      "itemTypeMismatch": "Runen können nur zwischen Items desselben Typs übertragen werden.",
+      "fundamentalMismatch": "Diese Fundamentalrune ist für das Ziel-Item ungültig.",
+      "propertyMismatch": "Diese Property-Rune ist für das Ziel-Item ungültig.",
+      "propertySlotsFull": "Das Ziel-Item hat keine freien Property-Runenplätze."
+    },
+    "settings": {
+      "transferCostPercent": {
+        "name": "Runentransferkosten (%)",
+        "hint": "Prozentsatz der Runenpreisdifferenz für einen Transfer. Werte außerhalb 0–100 verwenden den Standardwert 10 %."
+      },
+      "debug": {
+        "name": "Debug-Protokollierung",
+        "hint": "Schreibt Diagnosemeldungen des Rune Managers in die Browserkonsole."
+      }
     }
   }
 }
