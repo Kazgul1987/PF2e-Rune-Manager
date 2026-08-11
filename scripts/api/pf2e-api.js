@@ -32,26 +32,27 @@ export function getPropertyRunes(item) {
   return Array.isArray(property) ? property.filter((slug) => typeof slug === "string" && slug) : [];
 }
 
-const FUNDAMENTAL_BY_USAGE_AND_LEVEL = {
-  "etched-onto-a-weapon": {
-    2: ["potency", 1], 4: ["striking", 1], 10: ["potency", 2],
-    12: ["striking", 2], 16: ["potency", 3], 19: ["striking", 3],
-  },
-  "etched-onto-armor": {
-    5: ["potency", 1], 8: ["resilient", 1], 11: ["potency", 2],
-    14: ["resilient", 2], 18: ["potency", 3], 20: ["resilient", 3],
-  },
-  "etched-onto-a-shield": {
-    4: ["reinforcing", 1], 7: ["reinforcing", 2], 10: ["reinforcing", 3],
-    13: ["reinforcing", 4], 16: ["reinforcing", 5], 19: ["reinforcing", 6],
-  },
-};
-
 const FUNDAMENTAL_SLUGS = /^(?:(mythic|major|greater|supreme|moderate|lesser|minor)-)?(?:(weapon|armor)-potency|striking|resilient|reinforcing)(?:-rune)?(?:-(\d))?$/;
-const RANKS = { minor: 1, lesser: 2, moderate: 3, greater: 2, major: 3, supreme: 6, mythic: 4 };
+const FUNDAMENTAL_RANKS = { greater: 2, major: 3, mythic: 4 };
+const REINFORCING_RANKS = { minor: 1, lesser: 2, moderate: 3, greater: 4, major: 5, supreme: 6 };
 
 /** Identify a freestanding fundamental-rune item without preferring its display name. */
 export function getFundamentalRuneData(runeItem) {
+  const sourceId = String(runeItem?.sourceId ?? runeItem?.flags?.core?.sourceId ?? "");
+  const sourceSlug = sourceId.match(/Item\.([^.]+)$/)?.[1] ?? "";
+  const itemSlug = String(runeItem?.system?.slug ?? runeItem?.slug ?? "").toLowerCase();
+  const explicitSlug = itemSlug || sourceSlug.toLowerCase();
+  const match = explicitSlug.match(FUNDAMENTAL_SLUGS);
+  if (match) {
+    const [, prefix, potencyType, suffix] = match;
+    const kind = potencyType ? "potency" : explicitSlug.match(/striking|resilient|reinforcing/)?.[0];
+    const ranks = kind === "reinforcing" ? REINFORCING_RANKS : FUNDAMENTAL_RANKS;
+    const rank = Number(suffix) || ranks[prefix] || 1;
+    return kind ? { [kind]: rank, source: itemSlug ? "slug" : "source-id" } : {};
+  }
+  // A stable, non-fundamental slug is conclusive: do not reinterpret it heuristically.
+  if (itemSlug) return {};
+
   const usage = String(runeItem?.system?.usage?.value ?? runeItem?.system?.usage ?? "").toLowerCase();
   const level = Number(runeItem?.system?.level?.value ?? runeItem?.system?.level);
   const price = Number(runeItem?.system?.price?.value?.gp ?? runeItem?.system?.price?.value ?? runeItem?.system?.price);
@@ -63,27 +64,12 @@ export function getFundamentalRuneData(runeItem) {
     }
   }
   if (level === 20 && usage === "etched-onto-armor") {
-    if (price === 49440) return { resilient: 3, source: "system-usage-level-price" };
     if (price === 70000) {
       const slugHint = String(runeItem?.system?.slug ?? runeItem?.slug ?? runeItem?.flags?.core?.sourceId ?? "").toLowerCase();
       if (slugHint.includes("resilient")) return { resilient: 4, source: "system-source-metadata" };
       if (slugHint.includes("potency")) return { potency: 4, source: "system-source-metadata" };
     }
   }
-  const structured = FUNDAMENTAL_BY_USAGE_AND_LEVEL[usage]?.[level];
-  if (structured) return { [structured[0]]: structured[1], source: "system-usage-level" };
-
-  const sourceId = String(runeItem?.sourceId ?? runeItem?.flags?.core?.sourceId ?? "");
-  const sourceSlug = sourceId.match(/Item\.([^.]+)$/)?.[1] ?? "";
-  const explicitSlug = String(runeItem?.system?.slug ?? runeItem?.slug ?? sourceSlug).toLowerCase();
-  const match = explicitSlug.match(FUNDAMENTAL_SLUGS);
-  if (match) {
-    const [, prefix, potencyType, suffix] = match;
-    const kind = potencyType ? "potency" : explicitSlug.match(/striking|resilient|reinforcing/)?.[0];
-    const rank = Number(suffix) || RANKS[prefix] || 1;
-    return kind ? { [kind]: rank, source: explicitSlug === sourceSlug ? "source-id" : "slug" } : {};
-  }
-
   // Legacy fallback only
   const name = String(runeItem?.name ?? "").toLowerCase();
   const potency = name.match(/[+＋]\s*(\d+)/);
@@ -91,8 +77,8 @@ export function getFundamentalRuneData(runeItem) {
   const kind = name.match(/striking|resilient|reinforcing/)?.[0];
   if (!kind) return {};
   const prefix = name.match(/mythic|supreme|major|greater|moderate|lesser|minor/)?.[0];
-  let rank = RANKS[prefix] || 1;
-  if (kind === "reinforcing") rank = { ...RANKS, greater: 4, major: 5 }[prefix] || 1;
+  const ranks = kind === "reinforcing" ? REINFORCING_RANKS : FUNDAMENTAL_RANKS;
+  const rank = ranks[prefix] || 1;
   return { [kind]: rank, source: "legacy-name" };
 }
 
