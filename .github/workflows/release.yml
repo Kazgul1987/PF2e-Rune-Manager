@@ -1,9 +1,9 @@
-```yaml
 name: Build Foundry Release
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,6 +23,7 @@ jobs:
         run: |
           VERSION=$(jq -r '.version' module.json)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building PF2e Rune Manager v$VERSION"
 
       - name: Create release directory
         run: mkdir -p dist
@@ -32,18 +33,30 @@ jobs:
           zip -r "dist/pf2e-rune-manager.zip" \
             module.json \
             scripts \
-            styles \
-            lang
+            languages
 
       - name: Copy manifest
         run: cp module.json dist/module.json
+
+      - name: Determine release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG=$(gh release view --json tagName --jq '.tagName')
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Uploading assets to release: $TAG"
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" \
+          gh release upload "${{ steps.release.outputs.tag }}" \
             dist/pf2e-rune-manager.zip \
             dist/module.json \
             --clobber
-```
