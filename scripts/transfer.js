@@ -4,6 +4,7 @@ import { MODULE_ID } from "./constants.js";
 import { getActivePartyActor, getPropertyRuneSlots, isPF2eItemType, normalizeRuneFamilySlug } from "./api/pf2e-api.js";
 import { canTransferRune } from "./services/rune-service.js";
 import { getRuneSwapCost, getRuneTransferCost, getRuneTransferCostCP } from "./services/payment-service.js";
+import { runCompensatedMutation } from "./services/transaction-service.js";
 import { logger } from "./utils/logging.js";
 
 const TRANSFER_RUNES_SELECTOR = "a[data-action='transfer-runes']";
@@ -562,8 +563,9 @@ const buildRuneChoices = (sourceItem) => {
  */
 const payRuneTransferCost = async (sourceActor, targetActor, partyActor, priceGP, paySource) => {
   const costCP = getRuneTransferCostCP(priceGP); // 10% in Kupfer
-  if (costCP <= 0) {
-    return { success: true, costGP: 0 };
+  if (costCP === null || costCP < 0) return { success: false, costGP: 0, charged: false };
+  if (costCP === 0) {
+    return { success: true, costGP: 0, charged: false };
   }
 
   const sourceCP = Number(sourceActor?.inventory?.coins?.copperValue ?? 0);
@@ -589,7 +591,7 @@ const payRuneTransferCost = async (sourceActor, targetActor, partyActor, priceGP
       ui.notifications?.warn?.(t("warnings.partyFundsRemoveFailed"));
       return { success: false, costGP };
     }
-    return { success: true, costGP };
+    return makePaymentReceipt(partyActor, costCP, costGP);
   }
 
   if (paySource === "target") {
@@ -607,7 +609,7 @@ const payRuneTransferCost = async (sourceActor, targetActor, partyActor, priceGP
       ui.notifications?.warn?.(t("warnings.targetFundsRemoveFailed"));
       return { success: false, costGP };
     }
-    return { success: true, costGP };
+    return makePaymentReceipt(targetActor, costCP, costGP);
   }
 
   if (sourceCP < costCP) {
@@ -621,7 +623,33 @@ const payRuneTransferCost = async (sourceActor, targetActor, partyActor, priceGP
     return { success: false, costGP };
   }
 
-  return { success: true, costGP };
+  return makePaymentReceipt(sourceActor, costCP, costGP);
+};
+
+const makePaymentReceipt = (payer, costCP, costGP) => ({
+  success: true,
+  charged: costCP > 0,
+  costGP,
+  refund: async () => {
+    if (typeof payer?.inventory?.addCoins !== "function") return false;
+    const result = await payer.inventory.addCoins({ cp: costCP });
+    return result !== false;
+  },
+});
+
+const cloneRunes = (item) => foundry.utils.duplicate(item?.system?.runes ?? {});
+const restoreRuneStates = async (itemsAndStates) => {
+  const [first] = itemsAndStates;
+  const sameActor = first?.item?.actor && itemsAndStates.every(({ item }) => item.actor === first.item.actor);
+  if (sameActor) {
+    await first.item.actor.updateEmbeddedDocuments("Item", itemsAndStates.map(({ item, runes }) => ({
+      _id: item.id, "system.runes": runes,
+    })));
+    return;
+  }
+  const results = await Promise.allSettled(itemsAndStates.map(({ item, runes }) => item.update({ "system.runes": runes })));
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) throw failed.reason;
 };
 
 /**
@@ -682,6 +710,10 @@ const executeSingleRuneTransfer = async ({
     }
 
     const maxSlots = getPropertyRuneSlotsTransfer(target);
+    if (maxSlots === null) {
+      ui.notifications?.warn?.(t("warnings.propertySlotsUnknown"));
+      return false;
+    }
     const sourceProps = Array.isArray(sourceRunes.property) ? [...sourceRunes.property] : [];
     const targetProps = Array.isArray(targetRunes.property) ? [...targetRunes.property] : [];
     const familySlug = normalizePropertyRuneFamilySlug(slug);
@@ -810,6 +842,11 @@ const applyRuneToStateForSwap = (runesState, rune) => {
 const ensureSwapSlotRules = ({ item, incomingRune, updatedRunes }) => {
   if (incomingRune.type !== "property") return true;
   const maxSlots = getPropertyRuneSlotsTransfer(item);
+  if (maxSlots === null) {
+    logger.warn("Blocked swap because ABP property slots are unknown", { item: item?.uuid });
+    ui.notifications?.warn?.(t("warnings.propertySlotsUnknown"));
+    return false;
+  }
   const propertyCount = (Array.isArray(updatedRunes.property) ? updatedRunes.property : []).filter(Boolean)
     .length;
 
@@ -855,9 +892,24 @@ const executeRuneSwap = async ({ itemA, itemB, runeA, runeB }) => {
  * - Preise beider Runen bestimmen
  * - Kosten anhand der teureren Rune berechnen
  * - Zahlung durchführen
- * - Beide Runen atomar tauschen
+ * - Beide Runen mit bestmöglicher Kompensation tauschen (keine Foundry-Transaktion)
  */
 const performRuneSwapWithCost = async ({ actor, partyActor, itemA, itemB, runeA, runeB, paySource }) => {
+  if (!actor || !itemA || !itemB || !itemA.actor || !itemB.actor || !itemA.isOwner || !itemB.isOwner) {
+    ui.notifications?.warn?.(t("warnings.invalidSourceOrTarget"));
+    return false;
+  }
+  const validationA = canTransferRune(itemA, itemB, runeA);
+  const validationB = canTransferRune(itemB, itemA, runeB);
+  // A property swap frees one slot before filling it, so a pre-swap "full" result
+  // is expected; all other failures (especially unknown ABP capacity) block payment.
+  const invalidA = !validationA.valid && validationA.reason !== "propertySlotsFull" ? validationA : null;
+  const invalidB = !validationB.valid && validationB.reason !== "propertySlotsFull" ? validationB : null;
+  const invalid = invalidA ?? invalidB;
+  if (invalid) {
+    ui.notifications?.warn?.(t(`warnings.${invalid.reason}`));
+    return false;
+  }
   const sourceRunePriceGP = Number(runeA?.price);
   const targetRunePriceGP = Number(runeB?.price);
   if (![sourceRunePriceGP, targetRunePriceGP].every((price) => Number.isFinite(price) && price >= 0)) {
@@ -880,17 +932,17 @@ const performRuneSwapWithCost = async ({ actor, partyActor, itemA, itemB, runeA,
     paySource,
   });
 
-  const payment = await payRuneTransferCost(
-    actor,
-    itemB?.actor ?? actor,
-    partyActor,
-    expensiveRunePriceGP,
-    paySource || "source"
-  );
-  if (!payment.success) return false;
-
-  const ok = await executeRuneSwap({ itemA, itemB, runeA, runeB });
-  if (!ok) return false;
+  const originals = [{ item: itemA, runes: cloneRunes(itemA) }, { item: itemB, runes: cloneRunes(itemB) }];
+  const result = await runCompensatedMutation({
+    applyPayment: () => payRuneTransferCost(actor, itemB.actor ?? actor, partyActor, expensiveRunePriceGP, paySource || "source"),
+    applyMutation: () => executeRuneSwap({ itemA, itemB, runeA, runeB }),
+    restoreMutation: () => restoreRuneStates(originals),
+  });
+  if (!result.success) {
+    if (result.phase === "mutation") ui.notifications?.error?.(t(result.paymentRefunded ? "errors.operationFailedRefunded" : "errors.operationFailedRefundFailed"));
+    return false;
+  }
+  const payment = result.payment;
 
   ui.notifications?.info?.(
     `Runen wurden erfolgreich getauscht. Kosten: ${payment.costGP.toFixed(
@@ -1043,6 +1095,16 @@ const performRuneTransferWithCost = async ({
   removeFromSource,
   paySource,
 }) => {
+  if (!sourceActor || !targetActor || !source || !target || !source.isOwner || !target.isOwner) {
+    ui.notifications?.warn?.(t("warnings.invalidSourceOrTarget"));
+    return;
+  }
+  const transferValidation = canTransferRune(source, target, choice);
+  if (!transferValidation.valid) {
+    logger.warn("Blocked transfer before payment", { reason: transferValidation.reason });
+    ui.notifications?.warn?.(t(`warnings.${transferValidation.reason}`));
+    return;
+  }
   const level = Number(choice.level);
   const sourcePriceGP = Number(choice.price);
   if (!Number.isFinite(level) || !Number.isFinite(sourcePriceGP) || sourcePriceGP < 0) {
@@ -1072,22 +1134,24 @@ const performRuneTransferWithCost = async ({
     paySource,
   });
 
-  if (method === "vendor") {
-    // Direkt bezahlen und übertragen
-    const payment = await payRuneTransferCost(sourceActor, targetActor, partyActor, diffPriceGP, paySource);
-    if (!payment.success) return;
-
-    const ok = await executeSingleRuneTransfer({
-      sourceActor,
-      targetActor,
-      source,
-      target,
-      choice,
-      removeFromSource,
+  const originals = [{ item: source, runes: cloneRunes(source) }, { item: target, runes: cloneRunes(target) }];
+  const applyPaidTransfer = async () => {
+    const result = await runCompensatedMutation({
+      applyPayment: () => payRuneTransferCost(sourceActor, targetActor, partyActor, diffPriceGP, paySource),
+      applyMutation: () => executeSingleRuneTransfer({ sourceActor, targetActor, source, target, choice, removeFromSource }),
+      restoreMutation: () => restoreRuneStates(originals),
     });
-    if (ok) {
+    if (!result.success && result.phase === "mutation") {
+      ui.notifications?.error?.(t(result.paymentRefunded ? "errors.operationFailedRefunded" : "errors.operationFailedRefundFailed"));
+    }
+    return result;
+  };
+
+  if (method === "vendor") {
+    const result = await applyPaidTransfer();
+    if (result.success) {
       ui.notifications?.info?.(
-        `Rune transferred via vendor. Cost: ${payment.costGP.toFixed(
+        `Rune transferred via vendor. Cost: ${result.payment.costGP.toFixed(
           2
         )} gp (10% of price difference).`
       );
@@ -1128,20 +1192,10 @@ const performRuneTransferWithCost = async ({
       success: {
         label: "Success",
         callback: async () => {
-          const payment = await payRuneTransferCost(sourceActor, targetActor, partyActor, diffPriceGP, paySource);
-          if (!payment.success) return;
-
-          const ok = await executeSingleRuneTransfer({
-            sourceActor,
-            targetActor,
-            source,
-            target,
-            choice,
-            removeFromSource,
-          });
-          if (ok) {
+          const result = await applyPaidTransfer();
+          if (result.success) {
             ui.notifications?.info?.(
-              `Rune transferred via crafting. Cost: ${payment.costGP.toFixed(
+              `Rune transferred via crafting. Cost: ${result.payment.costGP.toFixed(
                 2
               )} gp (10% of price difference).`
             );

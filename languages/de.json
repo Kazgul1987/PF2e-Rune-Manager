@@ -35,7 +35,12 @@
       "itemTypeMismatch": "Runen können nur zwischen Items desselben Typs übertragen werden.",
       "fundamentalMismatch": "Diese Fundamentalrune ist für das Ziel-Item ungültig.",
       "propertyMismatch": "Diese Property-Rune ist für das Ziel-Item ungültig.",
-      "propertySlotsFull": "Das Ziel-Item hat keine freien Property-Runenplätze."
+      "propertySlotsFull": "Das Ziel-Item hat keine freien Property-Runenplätze.",
+      "propertySlotsUnknown": "Die Property-Runenplätze können bei aktiver Automatic Bonus Progression nicht sicher bestimmt werden. Es wurden keine Änderungen vorgenommen."
+    },
+    "errors": {
+      "operationFailedRefunded": "Die Runenänderung ist fehlgeschlagen. Ursprüngliche Item-Daten und Zahlung wurden soweit von Foundry ermöglicht wiederhergestellt.",
+      "operationFailedRefundFailed": "Die Runenänderung ist fehlgeschlagen und die Zahlung konnte nicht automatisch erstattet werden. Ein GM muss die Münzen korrigieren; Details stehen im Konsolenprotokoll."
     },
     "settings": {
       "transferCostPercent": {

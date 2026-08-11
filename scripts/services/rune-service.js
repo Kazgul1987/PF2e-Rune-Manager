@@ -1,5 +1,5 @@
 import {
-  getPropertyRuneSlots,
+  getPropertyRuneSlotData,
   getPropertyRunes,
   hasRuneDocumentData,
   isPF2eItemType,
@@ -30,9 +30,10 @@ export function canTransferRune(source, target, rune) {
   const existing = getPropertyRunes(target);
   const family = normalizeRuneFamilySlug(rune.slug);
   const replacesFamily = existing.some((slug) => normalizeRuneFamilySlug(slug) === family);
-  if (!replacesFamily && existing.length >= getPropertyRuneSlots(target)) {
+  const slotData = getPropertyRuneSlotData(target);
+  if (!slotData.known) return { valid: false, reason: "propertySlotsUnknown" };
+  if (!replacesFamily && existing.length >= slotData.slots) {
     return { valid: false, reason: "propertySlotsFull" };
   }
   return { valid: true };
 }
-
